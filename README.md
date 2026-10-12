@@ -1,4 +1,4 @@
-<p><img src="https://github.com/user-attachments/assets/da5bb809-3949-4854-99e4-1619022444e7" width="128"/></p>
+<p><img src="static/icons/icon.png" alt="Highspell+" width="128"/></p>
 <p>
   <a href="https://discord.gg/highspell"><img alt="JoinDiscord" src="https://img.shields.io/badge/Discord-Join_Us-purple?style=flat&logo=Discord&label=Discord"/></a>
   <img alt="GitHub License" src="https://img.shields.io/github/license/matter418/HighSpellPlus">

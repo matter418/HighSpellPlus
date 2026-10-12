@@ -147,22 +147,51 @@ function unmapPoint(p, el, pt, l) {
 }
 
 /**
+ * Screen rect of a descendant, cut down to what is actually visible: intersected with every
+ * ancestor up to (and including) the panel that clips its overflow. The minimap container is
+ * `overflow: hidden` around two map-tile divs the size of the whole loaded map region (offset to
+ * negative left/top and rotated with the camera), so without clipping the frame would surround
+ * the hidden map instead of the visible square. `clips` caches each ancestor's clip rect per call.
+ */
+function visibleRect(c, el, clips) {
+    let r = c.getBoundingClientRect();
+    let left = r.left, top = r.top, right = r.right, bottom = r.bottom;
+    for (let a = c.parentElement; a; a = a.parentElement) {
+        let clip = clips.get(a);
+        if (clip === undefined) {
+            const cs = getComputedStyle(a);
+            clip = (cs.overflowX !== 'visible' || cs.overflowY !== 'visible') ? a.getBoundingClientRect() : null;
+            clips.set(a, clip);
+        }
+        if (clip) {
+            left = Math.max(left, clip.left); top = Math.max(top, clip.top);
+            right = Math.min(right, clip.right); bottom = Math.min(bottom, clip.bottom);
+            if (right <= left || bottom <= top) return null;
+        }
+        if (a === el) break;
+    }
+    return { left, top, right, bottom };
+}
+
+/**
  * The panel's natural bounds as the user sees them: its own layout box UNITED with every visible
  * descendant's box. Some containers (the inventory/skills window) are a near-empty flex box whose
  * menus overflow it, so the element's own box would give a tiny outline and unreachable handles.
  * Descendants inherit the panel's transform, so their screen rects are mapped back through it.
+ * Descendants hidden by an overflow-clipping ancestor (the minimap's map tiles) do not count.
  */
 function naturalBounds(p, el) {
     const l = L()[p.key];
     let box = naturalBox(el);
     let { left, top, right, bottom } = box;
+    const clips = new Map();
     for (const c of el.querySelectorAll('*')) {
         if (!(c instanceof HTMLElement) || c.offsetWidth === 0 || c.offsetHeight === 0) continue;
         if (c.classList.contains(HANDLE_CLASS)) continue;
         const cs = getComputedStyle(c);
         if (cs.visibility === 'hidden' || cs.opacity === '0') continue;
-        const r = c.getBoundingClientRect();
-        if (r.width === 0 || r.height === 0) continue;
+        const r = visibleRect(c, el, clips);
+        if (!r) continue;
         const p1 = unmapPoint(p, el, { x: r.left, y: r.top }, l);
         const p2 = unmapPoint(p, el, { x: r.right, y: r.bottom }, l);
         left = Math.min(left, p1.x); top = Math.min(top, p1.y);

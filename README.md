@@ -121,8 +121,8 @@ Plugins built for other `@ryelite/core` clients work as-is: the hub carries the 
 
 ### Plugin API (`@ryelite/core`)
 Game hooks and the plugin framework come from the `@ryelite/core` package, which Highspell+ keeps a copy of so nothing depends on anyone else's infrastructure staying up:
-- `vendor/ryelite-core-0.1.1.tgz` — the package itself; `package.json` installs it from there, never from the npm registry
-- `static/vendor/ryelite-core-0.1.1.js` — the same framework served to the game page as `hsplus://vendor/…`; the import map in `client.html` resolves `@ryelite/core`, `@highlite/core` and `@highlite/plugin-api` (older plugins use the old names) to it, so plugins load their framework from inside the app rather than a CDN
+- `vendor/ryelite-core-0.1.2-hsplus.1.tgz` — the package itself; `package.json` installs it from there, never from the npm registry
+- `static/vendor/ryelite-core-0.1.2-hsplus.1.js` — the same framework served to the game page as `hsplus://vendor/…`; the import map in `client.html` resolves `@ryelite/core`, `@highlite/core` and `@highlite/plugin-api` (older plugins use the old names) to it, so plugins load their framework from inside the app rather than a CDN
 - [HighSpellPlus-Core](https://github.com/matter418/HighSpellPlus-Core) — a full mirror of the package's source (GPL-3.0), for when it needs changes
 
 See [vendor/README.md](vendor/README.md) for how to move to a newer core.

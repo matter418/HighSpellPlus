@@ -32,7 +32,7 @@ export const VENDOR_SCHEME = 'hsplus';
 
 /** Files allowed out of the vendor folder. Everything else is a 404. */
 const VENDOR_FILES: Record<string, string> = {
-    'ryelite-core-0.1.1.js': 'text/javascript; charset=utf-8',
+    'ryelite-core-0.1.2-hsplus.1.js': 'text/javascript; charset=utf-8',
 };
 
 export function registerVendorScheme(): void {

@@ -853,16 +853,16 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@ryelite/core@file:./vendor/ryelite-core-0.1.1.tgz::locator=highspellplus%40workspace%3A.":
-  version: 0.1.1
-  resolution: "@ryelite/core@file:./vendor/ryelite-core-0.1.1.tgz#./vendor/ryelite-core-0.1.1.tgz::hash=4cd3e5&locator=highspellplus%40workspace%3A."
+"@ryelite/core@file:./vendor/ryelite-core-0.1.2-hsplus.1.tgz::locator=highspellplus%40workspace%3A.":
+  version: 0.1.2-hsplus.1
+  resolution: "@ryelite/core@file:./vendor/ryelite-core-0.1.2-hsplus.1.tgz#./vendor/ryelite-core-0.1.2-hsplus.1.tgz::hash=2bc8ef&locator=highspellplus%40workspace%3A."
   dependencies:
     acorn: "npm:^8.15.0"
     acorn-walk: "npm:^8.3.4"
     idb: "npm:^8.0.3"
     on-change: "npm:^5.0.1"
     tsc: "npm:^2.0.4"
-  checksum: 10c0/1720f5d30c9cfbced0d0d5f77ce25a71db4c6767f868dc23d1936f3e70320e5a3357285bd7c211188273ef554256a4409a4d8b608e2ae58f5dfc5a033dd77c8d
+  checksum: 10c0/18b61dc7485cba910c796e2a32f330a3adec03b6c8a59bcf156279b1c18b0c4c4db95f8d64c723ff63f303876eb6e1ed7a08b798d0766cac181f8e867c956e50
   languageName: node
   linkType: hard
 
@@ -2393,7 +2393,7 @@ __metadata:
     "@electron-toolkit/tsconfig": "npm:^1.0.1"
     "@electron-toolkit/utils": "npm:^4.0.0"
     "@iconify/iconify": "npm:^3.1.1"
-    "@ryelite/core": "file:./vendor/ryelite-core-0.1.1.tgz"
+    "@ryelite/core": "file:./vendor/ryelite-core-0.1.2-hsplus.1.tgz"
     "@types/node": "npm:^22.17.1"
     electron: "npm:^37.2.6"
     electron-builder: "npm:^26.1.0"

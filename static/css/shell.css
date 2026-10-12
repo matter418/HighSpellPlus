@@ -1,0 +1,507 @@
+/*
+Copyright (C) 2025  HighLite
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see <https://www.gnu.org/licenses/>.
+*/
+
+/* Multi-account shell: title bar + account strip/dock around the game views. */
+
+:root {
+    --titlebar-height: 28px;
+    --shell-green: #00de7a;
+    --shell-green-dark: #0b1a12;
+    --shell-chip-bg: #22252b;
+    --shell-chip-active-bg: #121316;
+    --shell-dock-bg: #1b1d21;
+    --shell-border: #2b2f36;
+    --shell-muted: #9aa0a8;
+    --shell-dim: #6f7682;
+    /* Idle flash color; overridden at runtime from the "Idle Alert Color" setting. */
+    --shell-attention: #f9f449;
+}
+
+html, body {
+    height: 100%;
+    background: #141414;
+    font-family: 'Inter', sans-serif;
+    font-size: 13px;
+    color: var(--theme-text-primary);
+    user-select: none;
+}
+
+body {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+/* ---- title bar ------------------------------------------------------------------ */
+
+#shell-titlebar {
+    flex: 0 0 var(--titlebar-height);
+    padding-right: 0;
+}
+
+.shell-brand {
+    display: flex;
+    align-items: center;
+    flex: 0 0 auto;
+}
+
+#iconbar {
+    display: flex;
+    align-items: center;
+    height: 100%;
+    flex: 0 0 auto;
+}
+
+#iconbar #window-controls {
+    margin-right: 10px;
+}
+
+#warningIndicator .warning-icon.warning { color: var(--theme-accent, #f9f449) !important; }
+#warningIndicator .warning-icon.error   { color: var(--theme-danger, #ef4444) !important; }
+
+/* Collapse chevrons (title bar + dock header) point toward the edge the bar/dock hides into,
+   and flip once it is collapsed. The SVG itself points up. */
+.collapse-chevron {
+    display: block;
+    transition: transform 0.15s ease;
+}
+#collapseBtn {
+    width: 22px;
+    height: 22px;
+    margin: 0 2px;
+    border-radius: 6px;
+    border: 1px solid #2b2f36;
+    background: #22252b;
+    align-items: center;
+    justify-content: center;
+}
+#collapseBtn:hover { border-color: var(--shell-muted); }
+/* Tab strips never collapse, so the title-bar button only exists for dock layouts. */
+body:not(.dock-layout) #collapseBtn { display: none; }
+body[data-layout="top"]    .collapse-chevron { transform: rotate(0deg); }
+body[data-layout="bottom"] .collapse-chevron { transform: rotate(180deg); }
+body[data-layout="left"]   .collapse-chevron { transform: rotate(-90deg); }
+body[data-layout="right"]  .collapse-chevron { transform: rotate(90deg); }
+body.collapsed[data-layout="top"]    .collapse-chevron { transform: rotate(180deg); }
+body.collapsed[data-layout="bottom"] .collapse-chevron { transform: rotate(0deg); }
+body.collapsed[data-layout="left"]   .collapse-chevron { transform: rotate(90deg); }
+body.collapsed[data-layout="right"]  .collapse-chevron { transform: rotate(-90deg); }
+
+/* ---- frame ---------------------------------------------------------------------- */
+
+#frame {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: row;
+}
+
+#content {
+    flex: 1;
+    min-width: 0;
+    min-height: 0;
+    background: #000;
+}
+
+/* ---- strips (top / bottom) ------------------------------------------------------- */
+
+.acct-strip {
+    display: none;
+    align-items: flex-end;
+    gap: 4px;
+    min-width: 0;
+    -webkit-app-region: no-drag;
+}
+
+#strip-top,
+#strip-bottom {
+    flex: 0 0 36px;
+    background: #141414;
+    padding: 0 8px;
+    align-items: center;
+    overflow: hidden;
+}
+#strip-top    { border-bottom: 1px solid #353535; }
+#strip-bottom { border-top: 1px solid #353535; }
+
+body[data-layout="top"] #strip-top,
+body[data-layout="bottom"] #strip-bottom {
+    display: flex;
+}
+
+.acct-chip {
+    position: relative;
+    display: flex;
+    align-items: center;
+    height: 28px;
+    min-width: 140px;
+    max-width: 200px;
+    border: 1px solid var(--shell-border);
+    border-radius: 6px;
+    background: var(--shell-chip-bg);
+    color: #c8ccd2;
+    box-sizing: border-box;
+    overflow: hidden;
+}
+.acct-chip.active {
+    background: var(--shell-chip-active-bg);
+    border-color: var(--shell-green);
+    color: #fff;
+}
+.acct-chip.attention:not(.active) {
+    animation: acct-flash 1s ease-in-out infinite alternate;
+}
+@keyframes acct-flash {
+    from { border-color: var(--shell-border); }
+    to   { border-color: var(--shell-attention, #f9f449); }
+}
+
+.acct-select {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    height: 100%;
+    padding: 0 6px 0 8px;
+    border: 0;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    cursor: pointer;
+    text-align: left;
+}
+
+.acct-num {
+    flex: 0 0 auto;
+    width: 18px;
+    height: 18px;
+    border-radius: 5px;
+    background: #2f333b;
+    color: #c8ccd2;
+    font-size: 11px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.acct-chip.active .acct-num,
+.acct-rail-btn.active .acct-num {
+    background: var(--shell-green);
+    color: var(--shell-green-dark);
+}
+
+.acct-name {
+    flex: 1;
+    min-width: 0;
+    font-weight: 600;
+    font-size: 12px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.acct-dot {
+    flex: 0 0 auto;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--shell-dim);
+}
+.acct-dot.state-login   { background: var(--theme-accent, #f9f449); }
+.acct-dot.state-ingame  { background: var(--shell-green); }
+.acct-dot.state-crashed { background: var(--theme-danger, #ef4444); }
+.acct-dot.state-loading {
+    background: transparent;
+    border: 2px solid var(--shell-dim);
+    border-top-color: transparent;
+    width: 6px;
+    height: 6px;
+    animation: acct-spin 0.8s linear infinite;
+}
+@keyframes acct-spin { to { transform: rotate(360deg); } }
+
+.acct-close {
+    flex: 0 0 auto;
+    width: 22px;
+    height: 100%;
+    border: 0;
+    background: transparent;
+    color: var(--shell-dim);
+    font-size: 14px;
+    line-height: 1;
+    cursor: pointer;
+    padding: 0;
+}
+.acct-close:hover {
+    color: var(--theme-danger, #ef4444);
+}
+
+.acct-add {
+    flex: 0 0 auto;
+    width: 28px;
+    height: 28px;
+    border: 1px dashed #3a3f48;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--shell-muted);
+    font-size: 16px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.acct-add:hover {
+    color: #fff;
+    border-color: var(--shell-muted);
+}
+
+.acct-count {
+    align-self: center;
+    margin-left: 8px;
+    font-size: 11px;
+    color: var(--shell-dim);
+    white-space: nowrap;
+}
+
+/* ---- docks (left / right) --------------------------------------------------------- */
+
+.acct-dock {
+    display: none;
+    flex: 0 0 232px;
+    width: 232px;
+    flex-direction: column;
+    background: var(--shell-dock-bg);
+    box-sizing: border-box;
+    -webkit-app-region: no-drag;
+}
+#dock-left  { border-right: 1px solid var(--shell-border); }
+#dock-right { border-left: 1px solid var(--shell-border); }
+
+body[data-layout="left"] #dock-left,
+body[data-layout="right"] #dock-right {
+    display: flex;
+}
+body.collapsed .acct-dock {
+    flex-basis: 56px;
+    width: 56px;
+}
+
+.acct-dock-header {
+    flex: 0 0 36px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 12px;
+    border-bottom: 1px solid var(--shell-border);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: #c8ccd2;
+}
+.acct-dock-title {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+    min-width: 0;
+}
+.acct-dock-header .acct-count {
+    margin-left: 0;
+    text-transform: none;
+    letter-spacing: 0;
+    font-weight: 400;
+}
+.acct-dock-collapse {
+    flex: 0 0 auto;
+    width: 28px;
+    height: 28px;
+    border-radius: 6px;
+    border: 1px solid var(--shell-border);
+    background: var(--shell-chip-bg);
+    color: #c8ccd2;
+    cursor: pointer;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.acct-dock-collapse:hover {
+    border-color: var(--shell-muted);
+    color: #fff;
+}
+body.collapsed .acct-dock-header {
+    justify-content: center;
+    padding: 0;
+}
+body.collapsed .acct-dock-title {
+    display: none;
+}
+
+.acct-dock-list {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
+    scrollbar-width: none;
+    padding: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+body.collapsed .acct-dock-list {
+    padding: 8px 0;
+    align-items: center;
+}
+.acct-dock-list::-webkit-scrollbar {
+    display: none;
+}
+
+.acct-card {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    border-radius: 8px;
+    overflow: hidden;
+    background: var(--shell-chip-bg);
+    border: 2px solid var(--shell-border);
+    color: #e8eaed;
+}
+.acct-card.active {
+    border-color: var(--shell-green);
+    box-shadow: 0 0 0 2px rgba(0, 222, 122, 0.25);
+}
+.acct-card.attention:not(.active) {
+    animation: acct-flash 1s ease-in-out infinite alternate;
+}
+.acct-card .acct-select {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0;
+    padding: 0;
+}
+.acct-thumb {
+    position: relative;
+    width: 100%;
+    height: 104px;
+    background: #0e1410;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--shell-dim);
+    font-size: 11px;
+}
+.acct-thumb img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+.acct-thumb .acct-main {
+    position: absolute;
+    left: 6px;
+    top: 6px;
+    padding: 2px 6px;
+    border-radius: 4px;
+    background: var(--shell-green);
+    color: var(--shell-green-dark);
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+}
+.acct-card .acct-meta {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 10px 9px 10px;
+}
+.acct-card .acct-state {
+    font-size: 11px;
+    color: var(--shell-muted);
+    white-space: nowrap;
+}
+.acct-card .acct-close {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    width: 20px;
+    height: 20px;
+    border-radius: 4px;
+    background: rgba(0, 0, 0, 0.55);
+    color: #c8ccd2;
+}
+
+.acct-rail-btn {
+    position: relative;
+    width: 40px;
+    height: 40px;
+    border-radius: 8px;
+    border: 2px solid var(--shell-border);
+    background: var(--shell-chip-bg);
+    color: #e8eaed;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+}
+.acct-rail-btn.active {
+    border-color: var(--shell-green);
+}
+.acct-rail-btn.attention:not(.active) {
+    animation: acct-flash 1s ease-in-out infinite alternate;
+}
+.acct-rail-btn .acct-num {
+    width: 22px;
+    height: 22px;
+    font-size: 12px;
+}
+.acct-rail-btn .acct-dot {
+    position: absolute;
+    right: -4px;
+    bottom: -4px;
+    border: 2px solid var(--shell-dock-bg);
+}
+
+.acct-dock .acct-add {
+    height: 40px;
+    width: 100%;
+    border: 1px dashed #3a3f48;
+    border-radius: 8px;
+    font-size: 12px;
+    gap: 6px;
+}
+body.collapsed .acct-dock .acct-add {
+    width: 40px;
+    font-size: 16px;
+}
+
+.acct-dock-footer {
+    flex: 0 0 auto;
+    padding: 8px 12px;
+    border-top: 1px solid var(--shell-border);
+    font-size: 11px;
+    color: var(--shell-dim);
+    display: flex;
+    justify-content: space-between;
+}
+body.collapsed .acct-dock-footer {
+    display: none;
+}
+
+/* Idle label on dock cards */
+.acct-card.attention .acct-state {
+    color: var(--shell-attention, #f9f449);
+    font-weight: 700;
+}

@@ -56,7 +56,9 @@ abstract class SettingsSchema {
 
 interface Section {
     heading: string;
-    fields: Array<Field | DropdownField | DirectoryField>;
+    fields: Array<Field | DropdownField | DirectoryField | ColorField>;
+    /** Optional warning shown under the section's fields. */
+    note?: string;
 }
 
 interface Field {
@@ -65,7 +67,11 @@ interface Field {
     description?: string;
     default?: string | number | boolean;
     value?: string | number | boolean;
-    validation: (value: string | number | boolean) => boolean | Promise<boolean>;
+    validation?: (value: string | number | boolean) => boolean | Promise<boolean>;
+    /** 'sound': changing this field plays the chosen alert sound at the section's volume field. */
+    preview?: 'sound';
+    /** True when the value is only read at startup; the settings page then asks for a restart. */
+    restart?: boolean;
 }
 interface DropdownField extends Field {
     type: SettingTypes.DROPDOWN;
@@ -76,13 +82,21 @@ interface DirectoryField extends Field {
     type: SettingTypes.DIRECTORY;
 }
 
+/** Rendered as a native color picker; value is a #rrggbb hex string. */
+interface ColorField extends Field {
+    type: SettingTypes.COLOR;
+}
+
 enum SettingTypes {
     STRING = 'string',
     NUMBER = 'number',
     BOOLEAN = 'boolean',
     DROPDOWN = 'dropdown',
-    DIRECTORY = 'directory'
+    DIRECTORY = 'directory',
+    COLOR = 'color'
 }
+
+const isHexColor = (value: unknown) => typeof value === 'string' && /^#[0-9a-fA-F]{6}$/.test(value);
 
 
 
@@ -96,6 +110,7 @@ export class settingsSchema extends SettingsSchema {
                     type: SettingTypes.DROPDOWN,
                     description: "Select the release channel for updates.",
                     default: "Stable",
+                    restart: true,
                     options: {
                         "Stable": "Stable",
                         "Beta": "Beta"
@@ -111,13 +126,115 @@ export class settingsSchema extends SettingsSchema {
                     label: "Enable Plugins",
                     type: SettingTypes.BOOLEAN,
                     description: "Allow the use of plugins in Highspell+.",
-                    default: true
+                    default: true,
+                    restart: true
                 } as Field,
                 {
                     label: "Allow Beta Plugins",
                     type: SettingTypes.BOOLEAN,
                     description: "Allow the use of beta plugins in Highspell+.",
+                    default: false,
+                    restart: true
+                } as Field
+            ]
+        },
+        MultiAccount: {
+            heading: "Multi-account",
+            note: "Each extra account costs roughly 350 MB of RAM and keeps running in the background so it stays logged in.",
+            fields: [
+                {
+                    label: "Enable Multiple Accounts",
+                    type: SettingTypes.BOOLEAN,
+                    description: "Run up to 6 HighSpell accounts in one window (HighSpell's limit). Off: one account per window, no tabs or dock.",
+                    default: false,
+                    restart: true
+                } as Field,
+                {
+                    label: "Account Bar Position",
+                    type: SettingTypes.DROPDOWN,
+                    description: "Where the other accounts are shown.",
+                    default: "top",
+                    options: {
+                        "Tabs on top": "top",
+                        "Tabs on bottom": "bottom",
+                        "Dock on left": "left",
+                        "Dock on right": "right"
+                    }
+                } as DropdownField,
+                {
+                    label: "Live Previews",
+                    type: SettingTypes.BOOLEAN,
+                    description: "Capture each background account about once a second so its dock card shows a thumbnail (dock layouts only). Off: name and status only.",
+                    default: true
+                } as Field,
+                {
+                    label: "Start Collapsed",
+                    type: SettingTypes.BOOLEAN,
+                    description: "Dock layouts open as a thin rail of numbered buttons (tab layouts are always shown in full). Toggle any time with the chevron or Ctrl+`.",
                     default: false
+                } as Field,
+                {
+                    label: "Background Frame Rate",
+                    type: SettingTypes.DROPDOWN,
+                    description: "How fast accounts you are not looking at keep rendering, and how often their dock thumbnails refresh. Higher is smoother but costs CPU and GPU per account.",
+                    default: 15,
+                    options: {
+                        "2 fps (lowest CPU)": 2,
+                        "5 fps": 5,
+                        "15 fps": 15,
+                        "30 fps": 30,
+                        "60 fps": 60
+                    }
+                } as DropdownField,
+                {
+                    label: "Idle Alert",
+                    type: SettingTypes.BOOLEAN,
+                    description: "Flash a background account's tab when its character stops what it was doing (woodcutting, fishing, combat…). Clears when you switch to it.",
+                    default: true
+                } as Field,
+                {
+                    label: "Idle Alert Delay (seconds)",
+                    type: SettingTypes.NUMBER,
+                    description: "How long the character must sit idle before the alert fires.",
+                    default: 12,
+                    validation: (value) => Number(value) >= 1 && Number(value) <= 600,
+                } as Field,
+                {
+                    label: "Idle Alert Color",
+                    type: SettingTypes.COLOR,
+                    description: "The color a background account's tab or card flashes when its character goes idle.",
+                    default: "#f9f449",
+                    validation: (value) => isHexColor(value),
+                } as ColorField,
+                {
+                    label: "Idle Sound",
+                    type: SettingTypes.DROPDOWN,
+                    description: "Sound played by the idle account. Picking one plays a preview. Leave Off if you use the Idle Alert plugin, which has its own sound.",
+                    default: "Off",
+                    options: {
+                        "Off": "Off",
+                        "Ding": "Ding",
+                        "Chime": "Chime",
+                        "Bell": "Bell",
+                        "Blip": "Blip",
+                        "Knock": "Knock",
+                        "Idle Alert": "Idle Alert"
+                    },
+                    preview: "sound"
+                } as DropdownField,
+                {
+                    label: "Idle Sound Volume (%)",
+                    type: SettingTypes.NUMBER,
+                    description: "Loudness of the idle sound, 0 to 100.",
+                    default: 60,
+                    validation: (value) => Number(value) >= 0 && Number(value) <= 100,
+                } as Field,
+                {
+                    label: "Isolate Account Sessions",
+                    type: SettingTypes.BOOLEAN,
+                    description: "Give every account its own cookies, storage and plugin installs. Off: all accounts share one profile, so your installed plugins and settings carry over to every tab.",
+                    default: false,
+                    restart: true
                 } as Field
             ]
         },

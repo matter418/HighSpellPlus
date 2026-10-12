@@ -297,3 +297,49 @@ Settings page styles, aligned with index.css and console.css theme tokens
   display: flex;
   justify-content: flex-end;
 }
+
+/* Section-level warning note (e.g. multi-account RAM cost) */
+.settings-note {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 12px;
+  padding: 10px 14px;
+  border-radius: 8px;
+  background: var(--theme-accent-transparent-10);
+  border: 1px solid var(--theme-accent-transparent-30);
+  color: var(--theme-text-secondary);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.settings-note .iconify {
+  flex: 0 0 auto;
+  font-size: 18px;
+  color: var(--theme-accent);
+}
+
+/* Color picker fields */
+.setting-color {
+  width: 44px;
+  height: 32px;
+  padding: 2px;
+  cursor: pointer;
+}
+
+.setting-color-hex {
+  width: 90px;
+  background: var(--theme-background-soft);
+  color: var(--theme-text-primary);
+  border: 1px solid var(--theme-border);
+  border-radius: 6px;
+  padding: 8px 10px;
+  font-family: 'Inter', sans-serif;
+  font-size: 13px;
+  text-transform: lowercase;
+}
+
+.setting-color-hex:focus {
+  outline: none;
+  border-color: var(--theme-accent);
+}

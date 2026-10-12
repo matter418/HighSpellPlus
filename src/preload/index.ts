@@ -30,11 +30,44 @@ const screenshotAPI = {
     capture: async () => ipcRenderer.invoke('screenshot:capture') as Promise<{ ok: boolean; path?: string; error?: string }>,
 };
 
+// Set on game views hosted by the multi-account shell (see main/windows/shell). The client
+// page uses it to drop its own title bar, report state, and throttle rendering while hidden.
+const slotArg = process.argv.find(a => a.startsWith('--hsplus-slot='));
+const accountAPI = {
+    embedded: Boolean(slotArg),
+    slot: slotArg ? Number(slotArg.split('=')[1]) : 0,
+    onVisibility: (cb: (visible: boolean) => void) => {
+        ipcRenderer.on('account:visibility', (_event, visible: boolean) => cb(visible));
+    },
+    setState: (state: 'loading' | 'login' | 'ingame' | 'crashed') => ipcRenderer.send('account:state', state),
+    notifyWarning: (level: 'warning' | 'error') => ipcRenderer.send('account:warning', level),
+    notifyAttention: (kind: string) => ipcRenderer.send('account:attention', kind),
+    clearAttention: () => ipcRenderer.send('account:attention', null),
+};
+
+// Used only by shell.html.
+const shellAPI = {
+    getConfig: () => ipcRenderer.invoke('shell:get-config'),
+    ready: () => ipcRenderer.send('shell:ready'),
+    setContentBounds: (bounds: { x: number; y: number; width: number; height: number }) =>
+        ipcRenderer.send('shell:content-bounds', bounds),
+    activate: (slot: number) => ipcRenderer.send('shell:activate', slot),
+    add: () => ipcRenderer.send('shell:add'),
+    close: (slot: number) => ipcRenderer.send('shell:close', slot),
+    onState: (cb: (state: any) => void) => { ipcRenderer.on('shell:state', (_e, s) => cb(s)); },
+    onPreview: (cb: (p: { slot: number; dataUrl: string }) => void) => { ipcRenderer.on('shell:preview', (_e, p) => cb(p)); },
+    onWarning: (cb: (w: { slot: number; level: string }) => void) => { ipcRenderer.on('shell:warning', (_e, w) => cb(w)); },
+    onToggleCollapsed: (cb: () => void) => { ipcRenderer.on('shell:toggle-collapsed', () => cb()); },
+    onSettingsChanged: (cb: () => void) => { ipcRenderer.on('settings:changed', () => cb()); },
+};
+
 if (process.contextIsolated) {
     try {
         contextBridge.exposeInMainWorld('electron', electronAPI);
         contextBridge.exposeInMainWorld('settings', settingsAPI);
         contextBridge.exposeInMainWorld('screenshot', screenshotAPI);
+        contextBridge.exposeInMainWorld('account', accountAPI);
+        contextBridge.exposeInMainWorld('shell', shellAPI);
     } catch (error) {
         console.error(error);
     }
@@ -45,4 +78,8 @@ if (process.contextIsolated) {
     window.settings = settingsAPI;
     // @ts-ignore
     window.screenshot = screenshotAPI;
+    // @ts-ignore
+    window.account = accountAPI;
+    // @ts-ignore
+    window.shell = shellAPI;
 }

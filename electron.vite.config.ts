@@ -59,6 +59,7 @@ export default defineConfig(({ mode }) => {
             update: resolve(__dirname, 'src/renderer/update.html'),
             console: resolve(__dirname, 'src/renderer/console.html'),
             settings: resolve(__dirname, 'src/renderer/settings.html'),
+            shell: resolve(__dirname, 'src/renderer/shell.html'),
           }
         }
       }

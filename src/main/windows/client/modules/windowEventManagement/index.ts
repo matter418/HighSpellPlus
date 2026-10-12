@@ -13,20 +13,21 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-import { ipcMain, BrowserWindow } from 'electron';
+import { ipcMain } from 'electron';
+import { resolveWindow } from '../../../../modules/windowRegistry';
 
-// Window Controls Handling
+// Window Controls Handling.
+// resolveWindow() (not BrowserWindow.fromWebContents) so these also work when the sender is a
+// multi-account game view rather than a window's own page.
 ipcMain.on('minimize-window', event => {
-    // Get the BrowserWindow instance from the event
-    const window = BrowserWindow.fromWebContents(event.sender);
+    const window = resolveWindow(event.sender);
     if (window && window.isMinimizable()) {
         window.minimize();
     }
 });
 
 ipcMain.on('toggle-maximize-window', event => {
-    // Get the BrowserWindow instance from the event
-    const window = BrowserWindow.fromWebContents(event.sender);
+    const window = resolveWindow(event.sender);
     if (window) {
         if (window.isMaximized()) {
             window.unmaximize();
@@ -37,8 +38,7 @@ ipcMain.on('toggle-maximize-window', event => {
 });
 
 ipcMain.on('close-window', event => {
-    // Get the BrowserWindow instance from the event
-    const window = BrowserWindow.fromWebContents(event.sender);
+    const window = resolveWindow(event.sender);
     if (window && !window.isDestroyed()) {
         if (window.getTitle() === "Console") {
             window.hide();
@@ -50,17 +50,15 @@ ipcMain.on('close-window', event => {
 
 // UI Ready Handling
 ipcMain.on('ui-ready', event => {
-    const window = BrowserWindow.fromWebContents(event.sender);
+    const window = resolveWindow(event.sender);
     if (window) {
         window.show();
     }
 });
 
-// Dev Tools Handling
+// Dev Tools Handling: toggle the sender's own dev tools (a game view has its own).
 ipcMain.on('show-dev-tools', event => {
-    // Get the BrowserWindow instance from the event
-    const window = BrowserWindow.fromWebContents(event.sender);
-    if (window) {
-        window.webContents.toggleDevTools();
+    if (!event.sender.isDestroyed()) {
+        event.sender.toggleDevTools();
     }
 });

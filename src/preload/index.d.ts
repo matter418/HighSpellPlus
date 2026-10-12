@@ -14,6 +14,32 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 import { ElectronAPI } from '@electron-toolkit/preload';
+
+type AccountState = 'loading' | 'login' | 'ingame' | 'crashed';
+
+interface ShellAccountInfo {
+    slot: number;
+    name: string;
+    state: AccountState;
+    active: boolean;
+    /** Set while a background account wants attention (e.g. 'idle'); null otherwise. */
+    attention: string | null;
+}
+
+interface ShellState {
+    activeSlot: number;
+    max: number;
+    accounts: ShellAccountInfo[];
+}
+
+interface ShellConfig {
+    layout: 'top' | 'bottom' | 'left' | 'right';
+    previews: boolean;
+    startCollapsed: boolean;
+    attentionColor: string;
+    max: number;
+}
+
 declare global {
     interface Window {
         electron: ElectronAPI;
@@ -27,6 +53,33 @@ declare global {
         };
         screenshot: {
             capture: () => Promise<{ ok: boolean; path?: string; error?: string }>;
-        }
+        };
+        /** Present on every page; `embedded` is true only inside a multi-account shell view. */
+        account: {
+            embedded: boolean;
+            slot: number;
+            onVisibility: (cb: (visible: boolean) => void) => void;
+            setState: (state: AccountState) => void;
+            notifyWarning: (level: 'warning' | 'error') => void;
+            /** Ask the shell to flash this account's tab (e.g. 'idle'). */
+            notifyAttention: (kind: string) => void;
+            clearAttention: () => void;
+        };
+        /** Debug hook installed by idleWatch.js in shell-hosted views. */
+        __hsplusIdleWatch?: () => unknown;
+        /** Only meaningful in shell.html. */
+        shell: {
+            getConfig: () => Promise<ShellConfig>;
+            ready: () => void;
+            setContentBounds: (bounds: { x: number; y: number; width: number; height: number }) => void;
+            activate: (slot: number) => void;
+            add: () => void;
+            close: (slot: number) => void;
+            onState: (cb: (state: ShellState) => void) => void;
+            onPreview: (cb: (p: { slot: number; dataUrl: string }) => void) => void;
+            onWarning: (cb: (w: { slot: number; level: string }) => void) => void;
+            onToggleCollapsed: (cb: () => void) => void;
+            onSettingsChanged: (cb: () => void) => void;
+        };
     }
 }

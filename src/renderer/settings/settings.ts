@@ -1,5 +1,6 @@
 // Use centralized settings API exposed by preload
 import '@iconify/iconify';
+import { playAlertSound } from '../shared/alertSounds';
 
 const isDarwin = window.electron.process.platform === 'darwin';
 // Hide the window controls if the OS is Darwin (macOS)
@@ -90,6 +91,15 @@ function createFieldEl(sectionKey: string, field: any): HTMLElement {
             control = select;
             break;
         }
+        case 'color': {
+            const input = document.createElement('input');
+            input.type = 'color';
+            input.value = typeof settingVal === 'string' && /^#[0-9a-fA-F]{6}$/.test(settingVal) ? settingVal : '#000000';
+            input.id = nameAttr;
+            input.className = 'setting-input setting-color';
+            control = input;
+            break;
+        }
         case 'directory': {
             // Render as text input + choose button below
             const input = document.createElement('input');
@@ -117,6 +127,26 @@ function createFieldEl(sectionKey: string, field: any): HTMLElement {
     right.className = 'setting-right';
     right.appendChild(control);
 
+    // Show the hex value next to a color swatch and keep it in sync (the picker alone gives
+    // no readable value, and people paste hex codes from other tools).
+    if (field.type === 'color') {
+        const hex = document.createElement('input');
+        hex.type = 'text';
+        hex.className = 'setting-color-hex';
+        hex.maxLength = 7;
+        hex.value = (control as HTMLInputElement).value;
+        hex.setAttribute('aria-label', `${field.label} hex value`);
+        control.addEventListener('input', () => { hex.value = (control as HTMLInputElement).value; });
+        hex.addEventListener('input', () => {
+            if (/^#[0-9a-fA-F]{6}$/.test(hex.value)) {
+                (control as HTMLInputElement).value = hex.value;
+                (control as HTMLInputElement).dispatchEvent(new Event('input', { bubbles: true }));
+                (control as HTMLInputElement).dispatchEvent(new Event('change', { bubbles: true }));
+            }
+        });
+        right.appendChild(hex);
+    }
+
     // Add chooser button for DIRECTORY fields
     if (field.type === 'directory') {
         const chooseBtn = document.createElement('button');
@@ -141,9 +171,19 @@ function createFieldEl(sectionKey: string, field: any): HTMLElement {
         });
         right.appendChild(chooseBtn);
     }
+    if (field.preview === 'sound') {
+        // Preview the chosen sound at the volume set in the same section.
+        control.addEventListener('change', () => {
+            const volumeInput = document.querySelector<HTMLInputElement>(`[id^="${sectionKey}:"][id*="Volume"]`);
+            const volume = volumeInput ? Number(volumeInput.value) : 60;
+            playAlertSound((control as HTMLSelectElement).value, volume);
+        });
+    }
+
     if (field.validation) {
         const badge = document.createElement('span');
         badge.className = 'setting-badge';
+        badge.hidden = true;
         right.appendChild(badge);
 
         const updateBadge = async () => {
@@ -156,12 +196,11 @@ function createFieldEl(sectionKey: string, field: any): HTMLElement {
                 const v = (control as HTMLInputElement).value;
                 value = (control as HTMLInputElement).type === 'number' ? Number(v) : v;
             }
-            badge.textContent = 'Checking…';
-            badge.classList.remove('ok', 'bad');
             const result = field.validation(value);
             const valid = result instanceof Promise ? await result : result;
-            badge.textContent = valid ? 'Valid' : 'Invalid';
-            badge.classList.toggle('ok', !!valid);
+            // Only speak up when something is wrong; a permanent "Valid" chip is noise.
+            badge.textContent = valid ? '' : 'Invalid';
+            badge.hidden = !!valid;
             badge.classList.toggle('bad', !valid);
         };
 
@@ -219,6 +258,7 @@ async function renderSettings() {
 
     const snapshot = new Map<string, string | number | boolean>();
     const controls: HTMLElement[] = [];
+    const fieldsByKey = new Map<string, any>();
     const allSettings = await window.settings.getAll();
     const { settingsSchema } = await import('../../preload/settings');
     Object.entries(settingsSchema.settings).forEach(([sectionKey, section]: any) => {
@@ -248,9 +288,24 @@ async function renderSettings() {
                 const key = `${sectionKey}:${field.label}`;
                 (control as HTMLElement).setAttribute('data-key', key);
                 controls.push(control);
+                fieldsByKey.set(key, field);
             }
             card.appendChild(fieldEl);
         });
+
+        if (section.note) {
+            const note = document.createElement('div');
+            note.className = 'settings-note';
+            note.setAttribute('role', 'note');
+            const icon = document.createElement('i');
+            icon.className = 'iconify';
+            icon.setAttribute('data-icon', 'material-symbols:warning-outline');
+            const text = document.createElement('span');
+            text.textContent = section.note;
+            note.appendChild(icon);
+            note.appendChild(text);
+            card.appendChild(note);
+        }
 
         sectionEl.appendChild(header);
         sectionEl.appendChild(card);
@@ -299,13 +354,17 @@ async function renderSettings() {
             return;
         }
 
-        // Write values back via settings API
+        // Write values back via settings API. Only fields flagged `restart` in the schema are
+        // read solely at startup; everything else is picked up live via 'settings:changed'.
         const merged: Record<string, any> = {};
+        let needsRestart = false;
         controls.forEach((c) => {
             const key = (c as HTMLElement).getAttribute('data-key')!; // Section:Label
             const [sectionKey, label] = key.split(':');
             merged[sectionKey] ||= {};
-            merged[sectionKey][label] = getVal(c);
+            const value = getVal(c);
+            merged[sectionKey][label] = value;
+            if (value !== snapshot.get(key) && fieldsByKey.get(key)?.restart) needsRestart = true;
         });
 
         // Save new values via settings API
@@ -322,8 +381,8 @@ async function renderSettings() {
         });
         actionBar.classList.remove('visible');
 
-        // Show restart-required modal
-        const modal = document.getElementById('restart-modal');
+        // Show restart-required modal only when a startup-only setting changed
+        const modal = needsRestart ? document.getElementById('restart-modal') : null;
         if (modal) {
             modal.classList.add('show');
             modal.setAttribute('aria-hidden', 'false');

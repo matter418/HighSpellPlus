@@ -19,6 +19,7 @@ import { format } from 'url';
 
 import './modules/userPasswordManagement'; // Import user password management module
 import './modules/windowEventManagement'; // Import window event management module
+import { createShellWindow, isMultiAccountEnabled } from '../shell';
 
 app.commandLine.appendSwitch('disable-background-timer-throttling');
 app.commandLine.appendSwitch('disable-renderer-backgrounding');
@@ -36,6 +37,12 @@ app.on("ready", () => {
   });
 
 export async function createClientWindow() {
+    // Multi-account mode swaps the single page-per-window layout for a shell window that
+    // hosts one WebContentsView per account. Everything below is the unchanged single-account path.
+    if (isMultiAccountEnabled()) {
+        return createShellWindow();
+    }
+
     const mainWindow = new BrowserWindow({
         webPreferences: {
             preload: path.join(__dirname, '../preload/index.js'),

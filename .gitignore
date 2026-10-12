@@ -151,3 +151,5 @@ dist
 # yalc
 .yalc/
 yalc.lock
+# Plugin sources are separate git repositories checked out side by side for run-dev.bat
+plugins/

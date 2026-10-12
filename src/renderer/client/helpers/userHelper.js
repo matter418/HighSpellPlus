@@ -41,9 +41,17 @@ export function createUserHelper() {
     });
 }
 
+// Tell the multi-account shell (if any) whether this view is on the login screen or in game.
+function reportAccountState(state) {
+    if (window.account && window.account.embedded) {
+        window.account.setState(state);
+    }
+}
+
 function setupUserHelper() {
     if (!doOncePerLoginScreen) return; // Prevent multiple setups
     doOncePerLoginScreen = false; // Set to false to prevent further setups
+    reportAccountState('login');
     // Identify login-menu-settings-container and add a new button to "Remember Account"
     // Button classes: login-menu-checkbox-button login-screen-bold-text login-screen-default-text-shadow
     // Button classes when checked: login-menu-checkbox-button login-screen-bold-text login-screen-default-text-shadow login-menu-checkbox-button__checked
@@ -308,6 +316,7 @@ function setupUserHelper() {
                     // Disconnect the observer once the screen mask is found
                     screenMaskObserver.disconnect();
                     doOncePerLoginScreen = true; // Reset the flag for future login screens
+                    reportAccountState('ingame');
                 }
             });
             // Start observing the document for changes

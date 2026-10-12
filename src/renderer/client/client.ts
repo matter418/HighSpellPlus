@@ -23,6 +23,21 @@ import '@static/css/item-tooltip.css';
 
 import './helpers/titlebarHelpers.js';
 import { setupWorldSelectorObserver } from './helpers/worldSelectHelper';
+import { initFrameThrottle, setHidden, setHiddenFrameRate } from './helpers/frameThrottle.js';
+import { initIdleWatch } from './helpers/idleWatch.js';
+
+// Inside the multi-account shell this page may be hidden behind another account. Serve
+// requestAnimationFrame from a slower timer pump while hidden so the game loop and socket keep
+// running (see frameThrottle.js). Must be installed before the game bundle is injected.
+if (window.account?.embedded) {
+    initFrameThrottle();
+    window.account.onVisibility(visible => setHidden(!visible));
+    const applyFrameRate = async () => {
+        setHiddenFrameRate(Number(await window.settings.get('MultiAccount', 'Background Frame Rate')) || 15);
+    };
+    await applyFrameRate();
+    window.electron.ipcRenderer.on('settings:changed', () => { void applyFrameRate(); });
+}
 
 // Load settings via centralized API (values are available via window.settings)
 await window.settings.getAll();
@@ -291,6 +306,8 @@ if (await window.settings.getByName('Enable Plugins')) {
         console.error('[Highspell+] Error loading plugins:', error);
     }
     await highlite.start();
+    // Multi-account shell only: flash this account's tab when its character goes idle.
+    initIdleWatch();
 } else {
     for (const element of document.getElementsByClassName('highlite-ui')) {
         element.remove();

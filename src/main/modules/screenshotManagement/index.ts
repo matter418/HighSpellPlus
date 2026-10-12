@@ -1,9 +1,10 @@
 // Copyright (C) 2025  HighLite
 
-import { app, BrowserWindow, ipcMain } from 'electron';
+import { app, BrowserWindow, ipcMain, WebContents } from 'electron';
 import path from 'path';
 import fs from 'fs';
 import { settingsService } from '../settingsManagement';
+import { resolveGameWebContents } from '../windowRegistry';
 
 function timestamp() {
     const d = new Date();
@@ -17,21 +18,27 @@ async function ensureDir(dir: string): Promise<string> {
     return target;
 }
 
-async function captureFocusedWindow(): Promise<{ buffer: Buffer; format: 'png' } | null> {
-    const win = BrowserWindow.getFocusedWindow() || BrowserWindow.getAllWindows()[0];
-    if (!win) return null;
+// Capture the game, not the chrome: in a multi-account window the sender is the shell page
+// and the game lives in the active account's view.
+async function captureGame(sender: WebContents): Promise<{ buffer: Buffer; format: 'png' } | null> {
+    let wc = resolveGameWebContents(sender);
+    if (!wc || wc.isDestroyed()) {
+        const win = BrowserWindow.getFocusedWindow() || BrowserWindow.getAllWindows()[0];
+        wc = win ? win.webContents : null;
+    }
+    if (!wc) return null;
 
-    const img = await win.webContents.capturePage();
+    const img = await wc.capturePage();
     const buffer = img.toPNG();
     return { buffer, format: 'png' };
 }
 
 export default function registerScreenshotIPC() {
-    ipcMain.handle('screenshot:capture', async () => {
+    ipcMain.handle('screenshot:capture', async (event) => {
         try {
             const dirSetting = settingsService.get('Screenshots', 'Screenshot Directory') as string | undefined;
             const dir = await ensureDir(dirSetting || app.getPath('pictures'));
-            const result = await captureFocusedWindow();
+            const result = await captureGame(event.sender);
             if (!result) return { ok: false, error: 'No window' };
 
             const name = `HighspellPlus_Screenshot_${timestamp()}.png`;

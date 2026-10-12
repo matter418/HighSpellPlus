@@ -1,0 +1,74 @@
+<!-- Copyright (C) 2025  HighLite
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see <https://www.gnu.org/licenses/>. -->
+
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <title>Highspell+</title>
+        <link rel="preconnect" href="https://fonts.googleapis.com">
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap" rel="stylesheet">
+        <link rel="stylesheet" href="/css/index.css" />
+        <link rel="stylesheet" href="/css/shell.css" />
+        <script type="module" src="shell/shell.ts"></script>
+    </head>
+    <body data-layout="top">
+        <div class="highlite_titlebar" id="shell-titlebar">
+            <div id="darwin-spacer"></div>
+            <div class="shell-brand">
+                <img id="logoImg" src="/icons/icon.png" alt="Highspell+ Logo" />
+                <span id="logoText">Highspell+</span>
+            </div>
+
+            <div id="iconbar">
+                <a id="collapseBtn" href="#" title="Hide account bar (Ctrl+`)" aria-label="Hide account bar">
+                    <svg class="collapse-chevron" aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 15l6-6 6 6"/></svg>
+                </a>
+                <a href="https://discord.gg/highspell" target="_blank" rel="noopener noreferrer" title="Discord">
+                    <i class="iconify" data-icon="simple-icons:discord"></i>
+                </a>
+                <a style="display: none" id="warningIndicator" href="#" title="Open console">
+                    <i class="iconify warning-icon" data-icon="material-symbols:warning-outline"></i>
+                </a>
+                <a id="settingsBtn" href="#" title="Settings">
+                    <i class="iconify" data-icon="mdi:cog"></i>
+                </a>
+                <a id="screenshotBtn" href="#" title="Take Screenshot">
+                    <i class="iconify" data-icon="mdi:camera"></i>
+                </a>
+                <div id="window-controls">
+                    <a id="minimizeBtn" class="window-control" title="Minimize"><i class="iconify" data-icon="material-symbols:minimize"></i></a>
+                    <a id="maximizeBtn" class="window-control" title="Maximize"><i class="iconify" data-icon="material-symbols:crop-square-outline"></i></a>
+                    <a id="closeBtn" class="window-control" title="Close"><i class="iconify" data-icon="material-symbols:close"></i></a>
+                </div>
+            </div>
+        </div>
+
+        <!-- Account tabs when the bar position is "top": its own row, so the whole title bar stays draggable -->
+        <div id="strip-top" class="acct-strip"></div>
+
+        <div id="frame">
+            <div id="dock-left" class="acct-dock"></div>
+            <!-- The active account's WebContentsView is positioned over this element by the main process. -->
+            <div id="content"></div>
+            <div id="dock-right" class="acct-dock"></div>
+        </div>
+
+        <!-- Account tabs when the bar position is "bottom" -->
+        <div id="strip-bottom" class="acct-strip"></div>
+
+    </body>
+</html>

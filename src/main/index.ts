@@ -18,6 +18,7 @@ import { electronApp } from '@electron-toolkit/utils';
 import { createUpdateWindow } from './windows/updater';
 import { registerConsoleIPC, getConsoleWindow } from './windows/console';
 import { createClientWindow } from './windows/client';
+import { addAccountToShell } from './windows/shell';
 import log from 'electron-log';
 import registerScreenshotIPC from './modules/screenshotManagement/index';
 import fs from 'fs';
@@ -91,8 +92,11 @@ app.whenReady().then(async () => {
 });
 
 app.on('second-instance', (_event, _argv, _workingDirectory) => {
-    // Someone tried to run a second instance, open a new window in response.
-    createClientWindow();
+    // Someone tried to run a second instance. With multi-account on, that means another
+    // account tab in the existing window; otherwise open a second window as before.
+    if (!addAccountToShell()) {
+        createClientWindow();
+    }
 });
 
 app.on('window-all-closed', () => {

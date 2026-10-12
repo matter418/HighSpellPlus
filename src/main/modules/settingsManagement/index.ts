@@ -21,7 +21,20 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 import { settingsSchema } from "../../../preload/settings";
 import { createSettingsModal } from "../../windows/settings/index";
+import { resolveWindow } from "../windowRegistry";
 import { BrowserWindow, ipcMain, dialog, app } from "electron";
+
+// Let every open page (shell, game views, console) react to a saved setting without a restart.
+function broadcastSettingsChanged() {
+    for (const win of BrowserWindow.getAllWindows()) {
+        if (win.isDestroyed()) continue;
+        win.webContents.send('settings:changed');
+        for (const view of win.contentView.children) {
+            const wc = (view as any).webContents;
+            if (wc && !wc.isDestroyed()) wc.send('settings:changed');
+        }
+    }
+}
 import fs from 'fs';
 import path from 'path';
 
@@ -83,6 +96,7 @@ class SettingsService {
         settingsSchema.loadFromJSON(schemaJSONString);
         await fs.promises.mkdir(path.dirname(this.settingsPath), { recursive: true });
         await fs.promises.writeFile(this.settingsPath, schemaJSONString, 'utf-8');
+        broadcastSettingsChanged();
     }
 
     getAll(): any {
@@ -112,6 +126,7 @@ class SettingsService {
         if (field) {
             field.value = value;
             await this.saveCurrent();
+            broadcastSettingsChanged();
         }
     }
 
@@ -135,11 +150,12 @@ export const settingsService = SettingsService.getInstance();
 // IPC Handlers for settings API
 let settingsWindowRef : BrowserWindow | null = null;
 ipcMain.on('settings:open', async (event) => {
-    console.warn("Here");
-    const parent = BrowserWindow.fromWebContents(event.sender) || BrowserWindow.getFocusedWindow();
+    const parent = resolveWindow(event.sender) || BrowserWindow.getFocusedWindow();
     if (!parent) return;
     if (settingsWindowRef?.isDestroyed() || !settingsWindowRef) {
         settingsWindowRef = await createSettingsModal(parent);
+    } else {
+        settingsWindowRef.focus();
     }
 });
 
@@ -183,7 +199,7 @@ ipcMain.handle('settings:apply', async (_event, newSettings) => {
 });
 
 ipcMain.handle('settings:select-directory', async (event, options?: { title?: string; defaultPath?: string }) => {
-    const parent = BrowserWindow.fromWebContents(event.sender);
+    const parent = resolveWindow(event.sender);
     const result = parent ? await dialog.showOpenDialog(parent, {
         properties: ['openDirectory', 'createDirectory'],
         title: options?.title ?? 'Select Directory',

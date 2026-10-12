@@ -14,31 +14,7 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 import { ElectronAPI } from '@electron-toolkit/preload';
-
-type AccountState = 'loading' | 'login' | 'ingame' | 'crashed';
-
-interface ShellAccountInfo {
-    slot: number;
-    name: string;
-    state: AccountState;
-    active: boolean;
-    /** Set while a background account wants attention (e.g. 'idle'); null otherwise. */
-    attention: string | null;
-}
-
-interface ShellState {
-    activeSlot: number;
-    max: number;
-    accounts: ShellAccountInfo[];
-}
-
-interface ShellConfig {
-    layout: 'top' | 'bottom' | 'left' | 'right' | 'multibox';
-    previews: boolean;
-    startCollapsed: boolean;
-    attentionColor: string;
-    max: number;
-}
+import type { AccountState, PanelLayout, ShellConfig, ShellState, UiLayoutStore } from '../shared/shellTypes';
 
 declare global {
     interface Window {
@@ -67,16 +43,13 @@ declare global {
             requestClose: () => void;
             onAccountCount: (cb: (count: number) => void) => void;
         };
-        /** Per-client HUD layout for the movable game panels (uiLayout.js). */
+        /** Movable HUD panel layouts (uiLayout.js): a shared layout plus one per character. */
         uiLayout: {
-            get: () => Promise<{ shared: Record<string, { dx: number; dy: number; scale: number }>; accounts: Record<string, Record<string, { dx: number; dy: number; scale: number }>> }>;
-            set: (scope: string, layout: Record<string, { dx: number; dy: number; scale: number }>) => void;
-            onChanged: (cb: (store: { shared: Record<string, { dx: number; dy: number; scale: number }>; accounts: Record<string, Record<string, { dx: number; dy: number; scale: number }>> }) => void) => void;
-            /** Append a diagnostics record to userData/ui-layout-debug.jsonl. */
-            debug: (entry: unknown) => void;
+            get: () => Promise<UiLayoutStore>;
+            /** scope: 'shared' or a character name. */
+            set: (scope: string, layout: Record<string, PanelLayout>) => void;
+            onChanged: (cb: (store: UiLayoutStore) => void) => void;
         };
-        /** Debug hook installed by idleWatch.js in shell-hosted views. */
-        __hsplusIdleWatch?: () => unknown;
         /** Only meaningful in shell.html. */
         shell: {
             getConfig: () => Promise<ShellConfig>;
@@ -85,6 +58,7 @@ declare global {
             activate: (slot: number) => void;
             add: () => void;
             close: (slot: number) => void;
+            clearWarning: () => void;
             onState: (cb: (state: ShellState) => void) => void;
             onPreview: (cb: (p: { slot: number; dataUrl: string }) => void) => void;
             onWarning: (cb: (w: { slot: number; level: string }) => void) => void;

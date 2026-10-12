@@ -22,31 +22,7 @@
 // process (before-input-event) for this page and every game view alike.
 
 import '@iconify/iconify';
-
-type Layout = 'top' | 'bottom' | 'left' | 'right' | 'multibox';
-type AccountState = 'loading' | 'login' | 'ingame' | 'crashed';
-
-interface AccountInfo {
-    slot: number;
-    name: string;
-    state: AccountState;
-    active: boolean;
-    attention: string | null;
-}
-
-interface ShellState {
-    activeSlot: number;
-    max: number;
-    accounts: AccountInfo[];
-}
-
-interface ShellConfig {
-    layout: Layout;
-    previews: boolean;
-    startCollapsed: boolean;
-    attentionColor: string;
-    max: number;
-}
+import type { AccountState, ShellAccountInfo, ShellConfig, ShellState } from '../../shared/shellTypes';
 
 const STATE_LABEL: Record<AccountState, string> = {
     loading: 'Loading…',
@@ -55,7 +31,29 @@ const STATE_LABEL: Record<AccountState, string> = {
     crashed: 'Crashed',
 };
 
-let config: ShellConfig = { layout: 'top', previews: true, startCollapsed: false, attentionColor: '#f9f449', max: 6 };
+// Shortcut text for tooltips and the dock footer only; the bindings live in main (before-input-event).
+const SHORTCUT = {
+    collapse: 'Ctrl+`',
+    add: 'Ctrl+Shift+T',
+    switchAll: 'Ctrl+1…6',
+    switchTo: (slot: number) => `Ctrl+${slot}`,
+};
+
+// The collapse chevron, used by the title-bar button and the dock header. Points up; CSS rotates it.
+const CHEVRON_SVG =
+    '<svg class="collapse-chevron" aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 15l6-6 6 6"/></svg>';
+
+// Only until getConfig() resolves; main's readConfig() is authoritative. `max`, `fps` and
+// `isolateSessions` are never read on this page (state.max and main own them) but the shared type has them.
+let config: ShellConfig = {
+    layout: 'top',
+    previews: true,
+    startCollapsed: false,
+    fps: 15,
+    isolateSessions: false,
+    attentionColor: '#f9f449',
+    max: 6,
+};
 let state: ShellState = { activeSlot: 0, max: 6, accounts: [] };
 let collapsed = false;
 const previews = new Map<number, string>();
@@ -84,14 +82,25 @@ document.getElementById('screenshotBtn')?.addEventListener('click', async () => 
     const res = await window.screenshot.capture();
     if (!res.ok) console.error('Screenshot failed:', res.error);
 });
-document.getElementById('collapseBtn')?.addEventListener('click', (e) => {
-    e.preventDefault();
-    toggleCollapsed();
-});
-document.getElementById('multiboxAdd')?.addEventListener('click', (e) => {
-    e.preventDefault();
-    window.shell.add();
-});
+
+// #collapseBtn and #multiboxAdd are <a href="#"> like the other title-bar icons so index.css's
+// `.highlite_titlebar a` rules (no-drag, flex, colour) cover them for free; hence preventDefault.
+const collapseBtn = document.getElementById('collapseBtn');
+if (collapseBtn) {
+    collapseBtn.innerHTML = CHEVRON_SVG;
+    collapseBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        toggleCollapsed();
+    });
+}
+const multiboxAdd = document.getElementById('multiboxAdd');
+if (multiboxAdd) {
+    multiboxAdd.title = `Add account (${SHORTCUT.add})`;
+    multiboxAdd.addEventListener('click', (e) => {
+        e.preventDefault();
+        window.shell.add();
+    });
+}
 
 const warningIndicator = document.getElementById('warningIndicator')!;
 const warningIcon = warningIndicator.querySelector('.warning-icon')!;
@@ -100,6 +109,9 @@ warningIndicator.addEventListener('click', (e) => {
     window.electron.ipcRenderer.send('show-console');
     warningIcon.classList.remove('warning', 'error');
     warningIndicator.style.display = 'none';
+    // Game views only forward a console message when it escalates the indicator; tell them it is
+    // cleared so the next warning is forwarded again (main relays this as account:warning-cleared).
+    window.shell.clearWarning();
 });
 window.shell.onWarning(({ level }) => {
     if (level === 'error') {
@@ -117,8 +129,9 @@ function pushContentBounds() {
     const r = content.getBoundingClientRect();
     window.shell.setContentBounds({ x: r.left, y: r.top, width: r.width, height: r.height });
 }
+// #content is flex: 1 both ways, so any window resize changes its size and the observer fires.
+// Position-only moves (switching the dock from left to right) go through applyLayout().
 new ResizeObserver(pushContentBounds).observe(content);
-window.addEventListener('resize', pushContentBounds);
 
 function isDock(): boolean {
     return config.layout === 'left' || config.layout === 'right';
@@ -131,10 +144,8 @@ function applyLayout() {
     body.classList.toggle('collapsed', collapsed);
     body.classList.toggle('dock-layout', isDock());
     body.style.setProperty('--shell-attention', config.attentionColor);
-    const collapseBtn = document.getElementById('collapseBtn');
     if (collapseBtn) {
-        const vertical = config.layout === 'top' || config.layout === 'bottom';
-        const label = `${collapsed ? 'Show' : 'Hide'} account ${vertical ? 'bar' : 'dock'} (Ctrl+\`)`;
+        const label = `${collapsed ? 'Show' : 'Hide'} account ${isDock() ? 'dock' : 'bar'} (${SHORTCUT.collapse})`;
         collapseBtn.title = label;
         collapseBtn.setAttribute('aria-label', label);
     }
@@ -157,15 +168,24 @@ function el<K extends keyof HTMLElementTagNameMap>(tag: K, className?: string, t
     return e;
 }
 
-function displayName(a: AccountInfo): string {
+function displayName(a: ShellAccountInfo): string {
     return a.name || `Account ${a.slot}`;
 }
 
-function dot(a: AccountInfo): HTMLElement {
+/** One line of status for tooltips and card labels; an idle alert outranks the connection state. */
+function statusText(a: ShellAccountInfo): string {
+    return a.attention === 'idle' ? 'Idle!' : STATE_LABEL[a.state];
+}
+
+function switchTitle(a: ShellAccountInfo): string {
+    return `${displayName(a)} — ${statusText(a)} (${SHORTCUT.switchTo(a.slot)})`;
+}
+
+function dot(a: ShellAccountInfo): HTMLElement {
     return el('span', `acct-dot state-${a.state}`);
 }
 
-function closeButton(a: AccountInfo): HTMLButtonElement {
+function closeButton(a: ShellAccountInfo): HTMLButtonElement {
     const b = el('button', 'acct-close', '×');
     b.type = 'button';
     b.title = `Close ${displayName(a)}`;
@@ -177,10 +197,10 @@ function closeButton(a: AccountInfo): HTMLButtonElement {
     return b;
 }
 
-function selectButton(a: AccountInfo, children: HTMLElement[]): HTMLButtonElement {
-    const b = el('button', 'acct-select');
+function selectButton(a: ShellAccountInfo, className: string, children: HTMLElement[]): HTMLButtonElement {
+    const b = el('button', className);
     b.type = 'button';
-    b.title = `${displayName(a)} — ${a.attention === 'idle' ? 'IDLE' : STATE_LABEL[a.state]} (Ctrl+${a.slot})`;
+    b.title = switchTitle(a);
     b.setAttribute('aria-label', `Switch to ${displayName(a)}`);
     for (const c of children) b.appendChild(c);
     b.addEventListener('click', () => window.shell.activate(a.slot));
@@ -191,7 +211,7 @@ function addButton(compact: boolean): HTMLButtonElement | null {
     if (state.accounts.length >= state.max) return null;
     const b = el('button', 'acct-add');
     b.type = 'button';
-    b.title = 'Add account (Ctrl+Shift+T)';
+    b.title = `Add account (${SHORTCUT.add})`;
     b.setAttribute('aria-label', 'Add account');
     b.textContent = compact ? '+' : '+ Add account';
     b.addEventListener('click', () => window.shell.add());
@@ -201,9 +221,9 @@ function addButton(compact: boolean): HTMLButtonElement | null {
 function collapseButton(): HTMLButtonElement {
     const b = el('button', 'acct-dock-collapse');
     b.type = 'button';
-    b.title = `${collapsed ? 'Expand' : 'Collapse'} dock (Ctrl+\`)`;
+    b.title = `${collapsed ? 'Expand' : 'Collapse'} dock (${SHORTCUT.collapse})`;
     b.setAttribute('aria-label', b.title);
-    b.innerHTML = '<svg class="collapse-chevron" aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 15l6-6 6 6"/></svg>';
+    b.innerHTML = CHEVRON_SVG;
     b.addEventListener('click', toggleCollapsed);
     return b;
 }
@@ -217,7 +237,7 @@ function renderStrip(container: HTMLElement) {
     for (const a of state.accounts) {
         const chip = el('div', `acct-chip${a.active ? ' active' : ''}${a.attention ? ' attention' : ''}`);
         chip.dataset.slot = String(a.slot);
-        chip.appendChild(selectButton(a, [
+        chip.appendChild(selectButton(a, 'acct-select', [
             el('span', 'acct-num', String(a.slot)),
             el('span', 'acct-name', displayName(a)),
             dot(a),
@@ -243,19 +263,13 @@ function renderDock(container: HTMLElement) {
 
     const list = el('div', 'acct-dock-list');
     for (const a of state.accounts) {
+        const flags = `${a.active ? ' active' : ''}${a.attention ? ' attention' : ''}`;
         if (collapsed) {
-            const b = el('button', `acct-rail-btn${a.active ? ' active' : ''}${a.attention ? ' attention' : ''}`);
-            b.type = 'button';
-            b.title = `${displayName(a)} — ${STATE_LABEL[a.state]} (Ctrl+${a.slot})`;
-            b.setAttribute('aria-label', `Switch to ${displayName(a)}`);
-            b.appendChild(el('span', 'acct-num', String(a.slot)));
-            b.appendChild(dot(a));
-            b.addEventListener('click', () => window.shell.activate(a.slot));
-            list.appendChild(b);
+            list.appendChild(selectButton(a, `acct-rail-btn${flags}`, [el('span', 'acct-num', String(a.slot)), dot(a)]));
             continue;
         }
 
-        const card = el('div', `acct-card${a.active ? ' active' : ''}${a.attention ? ' attention' : ''}`);
+        const card = el('div', `acct-card${flags}`);
         card.dataset.slot = String(a.slot);
 
         const thumb = el('div', 'acct-thumb');
@@ -266,16 +280,16 @@ function renderDock(container: HTMLElement) {
             img.alt = '';
             thumb.appendChild(img);
         } else {
-            thumb.appendChild(el('span', undefined, a.active ? 'Showing in main view' : STATE_LABEL[a.state]));
+            thumb.appendChild(el('span', undefined, a.active ? 'Showing in main view' : statusText(a)));
         }
         if (a.active) thumb.appendChild(el('span', 'acct-main', 'MAIN'));
 
         const meta = el('div', 'acct-meta');
         meta.appendChild(dot(a));
         meta.appendChild(el('span', 'acct-name', displayName(a)));
-        meta.appendChild(el('span', 'acct-state', a.attention === 'idle' ? 'Idle!' : STATE_LABEL[a.state]));
+        meta.appendChild(el('span', 'acct-state', statusText(a)));
 
-        card.appendChild(selectButton(a, [thumb, meta]));
+        card.appendChild(selectButton(a, 'acct-select', [thumb, meta]));
         card.appendChild(closeButton(a));
         list.appendChild(card);
     }
@@ -284,16 +298,15 @@ function renderDock(container: HTMLElement) {
     container.appendChild(list);
 
     const footer = el('div', 'acct-dock-footer');
-    footer.appendChild(el('span', undefined, 'Ctrl+1…6 to switch'));
-    footer.appendChild(el('span', undefined, 'Ctrl+` to collapse'));
+    footer.appendChild(el('span', undefined, `${SHORTCUT.switchAll} to switch`));
+    footer.appendChild(el('span', undefined, `${SHORTCUT.collapse} to collapse`));
     container.appendChild(footer);
 }
 
 function renderMultiboxControls() {
     const count = document.getElementById('multiboxCount');
     if (count) count.textContent = `${state.accounts.length} / ${state.max}`;
-    const add = document.getElementById('multiboxAdd');
-    if (add) add.style.display = state.accounts.length >= state.max ? 'none' : '';
+    if (multiboxAdd) multiboxAdd.style.display = state.accounts.length >= state.max ? 'none' : '';
 }
 
 function render() {
@@ -315,6 +328,10 @@ function render() {
 
 // Update a single thumbnail in place so the dock does not re-render every second.
 function updatePreviewImage(slot: number) {
+    // Main stops capturing when previews are off; this catches a frame that was already in flight.
+    if (!config.previews) return;
+    const src = previews.get(slot);
+    if (!src) return; // never set src = '': Chromium would fetch the page URL itself
     const card = document.querySelector<HTMLElement>(`.acct-card[data-slot="${slot}"]`);
     if (!card) return;
     const thumb = card.querySelector('.acct-thumb');
@@ -326,7 +343,7 @@ function updatePreviewImage(slot: number) {
         img.alt = '';
         thumb.prepend(img);
     }
-    img.src = previews.get(slot) || '';
+    img.src = src;
 }
 
 // ---- main-process events ----------------------------------------------------------------------
@@ -342,8 +359,11 @@ window.shell.onState((s) => {
 });
 
 window.shell.onPreview(({ slot, dataUrl }) => {
+    // A capture started before a switch can land after it; a stale frame under the MAIN badge
+    // would look like the live view, so the active account never gets a thumbnail.
+    if (slot === state.activeSlot) return;
     previews.set(slot, dataUrl);
-    if (config.layout === 'left' || config.layout === 'right') updatePreviewImage(slot);
+    if (isDock()) updatePreviewImage(slot);
 });
 
 window.shell.onToggleCollapsed(toggleCollapsed);

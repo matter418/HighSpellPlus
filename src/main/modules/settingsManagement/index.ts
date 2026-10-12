@@ -21,23 +21,18 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 import { settingsSchema } from "../../../preload/settings";
 import { createSettingsModal } from "../../windows/settings/index";
-import { resolveWindow } from "../windowRegistry";
+import { allWebContents, resolveWindow } from "../windowRegistry";
 import { BrowserWindow, ipcMain, dialog, app } from "electron";
+import fs from 'fs';
+import path from 'path';
 
 // Let every open page (shell, game views, console) react to a saved setting without a restart.
 function broadcastSettingsChanged() {
-    ipcMain.emit('settings:changed'); // main-process listeners (e.g. the multi-account shell)
-    for (const win of BrowserWindow.getAllWindows()) {
-        if (win.isDestroyed()) continue;
-        win.webContents.send('settings:changed');
-        for (const view of win.contentView.children) {
-            const wc = (view as any).webContents;
-            if (wc && !wc.isDestroyed()) wc.send('settings:changed');
-        }
-    }
+    // In-process listeners such as the multi-account shell. ipcMain is used as the event bus
+    // here; no renderer sends on this channel.
+    ipcMain.emit('settings:changed');
+    for (const wc of allWebContents()) wc.send('settings:changed');
 }
-import fs from 'fs';
-import path from 'path';
 
 // Centralized Settings Service
 class SettingsService {

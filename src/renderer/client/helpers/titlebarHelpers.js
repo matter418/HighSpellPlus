@@ -15,45 +15,60 @@
 
 // Inside the multi-account shell the window chrome belongs to shell.html, so this page drops
 // its own title bar and forwards its warning state to the shell instead of drawing it.
-const embedded = Boolean(window.account && window.account.embedded);
+const embedded = Boolean(window.account?.embedded);
 if (embedded) {
     const bar = document.querySelector('.highlite_titlebar');
     if (bar) bar.remove();
 }
 
+const warningIndicator = document.querySelector('#warningIndicator');
+const warningIcon = document.querySelector('#warningIndicator .warning-icon');
+
+// Highest level shown since the indicator was last cleared. The game logs warnings every few
+// seconds, so the shell is only told when the level actually goes up (none → warning → error).
+const LEVEL_RANK = { none: 0, warning: 1, error: 2 };
+let shownLevel = 'none';
+
+function clearWarning() {
+    shownLevel = 'none';
+    if (!warningIndicator || !warningIcon) return;
+    warningIcon.classList.remove('warning', 'error');
+    warningIndicator.style.display = 'none';
+}
+
 function flagWarning(level) {
+    if (LEVEL_RANK[level] <= LEVEL_RANK[shownLevel]) return;
+    shownLevel = level;
     if (embedded) {
         window.account.notifyWarning(level);
         return;
     }
-    const warningIndicator = document.querySelector('#warningIndicator');
-    const warningIcon = document.querySelector('#warningIndicator .warning-icon');
     if (!warningIndicator || !warningIcon) return;
-
-    if (level === 'error') {
-        // Errors take precedence over warnings
-        warningIcon.classList.remove('warning');
-        warningIcon.classList.add('error');
-    } else if (!warningIcon.classList.contains('error')) {
-        warningIcon.classList.add('warning');
-    }
+    // Errors take precedence over warnings
+    warningIcon.classList.toggle('error', level === 'error');
+    warningIcon.classList.toggle('warning', level !== 'error');
     warningIndicator.style.display = 'flex';
-
-    // On click open the console and clear the indicator
-    warningIndicator.onclick = () => {
-        window.electron.ipcRenderer.send('show-console');
-        warningIcon.classList.remove('warning', 'error');
-        warningIndicator.style.display = 'none';
-    };
 }
 
-let ogError = console.error;
+// On click open the console and clear the indicator
+if (warningIndicator) {
+    warningIndicator.onclick = () => {
+        window.electron.ipcRenderer.send('show-console');
+        clearWarning();
+    };
+}
+// Embedded: the indicator lives in the shell, which tells us when the user cleared it.
+if (embedded) {
+    window.electron.ipcRenderer.on('account:warning-cleared', clearWarning);
+}
+
+const ogError = console.error;
 console.error = function (...args) {
     ogError(...args);
     flagWarning('error');
 };
 
-let ogWarn = console.warn;
+const ogWarn = console.warn;
 console.warn = function (...args) {
     ogWarn(...args);
     flagWarning('warning');
@@ -116,4 +131,16 @@ export function setTitle(title) {
     if (logoText) {
         logoText.textContent = title;
     }
+}
+
+// "Highspell+ - <name>" is the one title format the shell (main) and uiLayout.js parse the
+// character name back out of; keep both halves of it here so they cannot drift apart.
+export function setAccountTitle(name) {
+    setTitle(`Highspell+ - ${name}`);
+}
+
+/** Character name from an account title; '' for anything else (e.g. the login screen). */
+export function accountNameFromTitle(title) {
+    const m = /^Highspell\+\s*-\s*(.+)$/.exec(title || '');
+    return m ? m[1].trim() : '';
 }

@@ -24,7 +24,7 @@
     The script also injects a new button that must be clicked to save the new username and password.
 */
 
-import { setTitle } from '../helpers/titlebarHelpers.js';
+import { setTitle, setAccountTitle } from '../helpers/titlebarHelpers.js';
 
 let doOncePerLoginScreen = true;
 export function createUserHelper() {
@@ -43,7 +43,7 @@ export function createUserHelper() {
 
 // Tell the multi-account shell (if any) whether this view is on the login screen or in game.
 function reportAccountState(state) {
-    if (window.account && window.account.embedded) {
+    if (window.account?.embedded) {
         window.account.setState(state);
     }
 }
@@ -221,7 +221,7 @@ function setupUserHelper() {
             usernameInput.style.display = 'none';
             usernameInput.value = this.value;
 
-            setTitle(`Highspell+ - ${this.value}`); // Update the title to indicate "Other" user
+            setAccountTitle(this.value); // Title carries the account name (see titlebarHelpers)
             // IPC Request to get saved passwords for the selected username
             window.electron.ipcRenderer
                 .invoke('get-saved-password', this.value)
@@ -304,9 +304,9 @@ function setupUserHelper() {
             }
 
             if (selectedUsername === 'other' && usernameInput.value !== '') {
-                setTitle(`Highspell+ - ${usernameInput.value}`);
+                setAccountTitle(usernameInput.value);
             } else {
-                setTitle(`Highspell+ - ${selectedUsername}`);
+                setAccountTitle(selectedUsername);
             }
 
             // Look for 'id' hs-screen-mask to exist trigger once

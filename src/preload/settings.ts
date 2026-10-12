@@ -1,3 +1,6 @@
+import { ALERT_SOUND_NAMES, DEFAULT_ALERT_VOLUME } from '../shared/alertSoundNames';
+import { isHexColor } from '../shared/validators';
+
 abstract class SettingsSchema {
     // Store sections in a dedicated property
     static settings: { [key: string]: Section };
@@ -68,8 +71,10 @@ interface Field {
     default?: string | number | boolean;
     value?: string | number | boolean;
     validation?: (value: string | number | boolean) => boolean | Promise<boolean>;
-    /** 'sound': changing this field plays the chosen alert sound at the section's volume field. */
+    /** 'sound': changing this field plays the chosen alert sound at the volume in `volumeField`. */
     preview?: 'sound';
+    /** Label of the NUMBER field (same section) that holds the preview volume, 0–100. */
+    volumeField?: string;
     /** True when the value is only read at startup; the settings page then asks for a restart. */
     restart?: boolean;
 }
@@ -103,10 +108,6 @@ enum SettingTypes {
     COLOR = 'color',
     BUTTON = 'button'
 }
-
-const isHexColor = (value: unknown) => typeof value === 'string' && /^#[0-9a-fA-F]{6}$/.test(value);
-
-
 
 export class settingsSchema extends SettingsSchema {
     static settings = {
@@ -152,7 +153,7 @@ export class settingsSchema extends SettingsSchema {
                 {
                     label: "Movable Interface",
                     type: SettingTypes.BOOLEAN,
-                    description: "Hold the modifier key and drag the minimap (its minimize button follows it), compass, logout button, action bars, chat, inventory window or its tab bar to move it; drag a corner square to resize it; double-click to reset it. The layout is shared by every account and remembered between sessions.",
+                    description: "Hold the modifier key and drag the minimap (its minimize button follows it), compass, logout button, action bars, chat, inventory window or its tab bar to move it; drag a corner square to resize it; double-click to reset it. The layout is remembered between sessions.",
                     default: true
                 } as Field,
                 {
@@ -164,7 +165,7 @@ export class settingsSchema extends SettingsSchema {
                 {
                     label: "Layout Modifier Key",
                     type: SettingTypes.DROPDOWN,
-                    description: "Key to hold while moving or resizing panels.",
+                    description: "Key to hold while moving or resizing panels. Shift conflicts with plugins' shift-click features (e.g. QuickDrop's \"Drop with: Shift\") while held, so Alt or Control is recommended.",
                     default: "Alt",
                     options: {
                         "Alt": "Alt",
@@ -233,7 +234,7 @@ export class settingsSchema extends SettingsSchema {
                 {
                     label: "Idle Alert",
                     type: SettingTypes.BOOLEAN,
-                    description: "Flash a background account's tab when its character stops what it was doing (woodcutting, fishing, combat…). Clears when you switch to it.",
+                    description: "When a character stops what it was doing (woodcutting, fishing, combat…), flash its tab and tint the game view. Clears when you switch to it or act.",
                     default: true
                 } as Field,
                 {
@@ -255,22 +256,16 @@ export class settingsSchema extends SettingsSchema {
                     type: SettingTypes.DROPDOWN,
                     description: "Sound played by the idle account. Picking one plays a preview. Leave Off if you use the Idle Alert plugin, which has its own sound.",
                     default: "Off",
-                    options: {
-                        "Off": "Off",
-                        "Ding": "Ding",
-                        "Chime": "Chime",
-                        "Bell": "Bell",
-                        "Blip": "Blip",
-                        "Knock": "Knock",
-                        "Idle Alert": "Idle Alert"
-                    },
-                    preview: "sound"
+                    // Built from the master list so a new sound shows up here without a second edit.
+                    options: Object.fromEntries([["Off", "Off"], ...ALERT_SOUND_NAMES.map(n => [n, n])]),
+                    preview: "sound",
+                    volumeField: "Idle Sound Volume (%)"
                 } as DropdownField,
                 {
                     label: "Idle Sound Volume (%)",
                     type: SettingTypes.NUMBER,
                     description: "Loudness of the idle sound, 0 to 100.",
-                    default: 60,
+                    default: DEFAULT_ALERT_VOLUME,
                     validation: (value) => Number(value) >= 0 && Number(value) <= 100,
                 } as Field,
                 {

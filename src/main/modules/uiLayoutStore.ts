@@ -15,31 +15,31 @@
 
 // Per-client HUD layout store (positions/scales of the movable game panels).
 //
-// One layout for the whole client, not per account: it lives in userData, and every change is
-// broadcast to every window and every multi-account view so all accounts follow at once.
+// Stored in userData/ui-layout.json as `{ shared, accounts: { <character name>: ... } }`. The
+// "Shared Interface Layout" setting picks which scope a client edits; every change is broadcast
+// to every window and every multi-account view so all clients follow at once.
 
-import { app, BrowserWindow, ipcMain } from 'electron';
+import { app, ipcMain } from 'electron';
 import log from 'electron-log';
 import fs from 'fs';
 import path from 'path';
+import { allWebContents } from './windowRegistry';
+import type { PanelLayout, UiLayoutStore } from '../../shared/shellTypes';
 
-export interface PanelLayout {
-    /** Offset from the panel's natural position, CSS px. */
-    dx: number;
-    dy: number;
-    /** Visual scale, 1 = game default. */
-    scale: number;
+type UiLayout = Record<string, PanelLayout>;
+
+// Panel keys are the `key:` values of the PANELS table in renderer/client/helpers/uiLayout.js;
+// account names are character names taken from the window title.
+const PANEL_KEY = /^[a-z][a-z0-9-]{0,31}$/;
+const MAX_NAME_LEN = 64;
+// Same limits the drag handles enforce (MIN_SCALE/MAX_SCALE in uiLayout.js), so a hand-edited
+// file cannot load a scale the UI could never produce or undo.
+const MIN_SCALE = 0.5;
+const MAX_SCALE = 3;
+
+function filePath() {
+    return path.join(app.getPath('userData'), 'ui-layout.json');
 }
-
-export type UiLayout = Record<string, PanelLayout>;
-
-/** `shared` is used when "Shared Interface Layout" is on; otherwise `accounts[<character name>]`. */
-export interface UiLayoutStore {
-    shared: UiLayout;
-    accounts: Record<string, UiLayout>;
-}
-
-const filePath = () => path.join(app.getPath('userData'), 'ui-layout.json');
 
 let store: UiLayoutStore | null = null;
 
@@ -48,7 +48,9 @@ function load(): UiLayoutStore {
     try {
         const raw = JSON.parse(fs.readFileSync(filePath(), 'utf8'));
         store = sanitizeStore(raw);
-    } catch {
+    } catch (e) {
+        // No file yet is normal; anything else means a corrupt file that the next drag will overwrite.
+        if ((e as NodeJS.ErrnoException).code !== 'ENOENT') log.warn('ui-layout.json unreadable, starting empty:', e);
         store = { shared: {}, accounts: {} };
     }
     return store;
@@ -58,7 +60,7 @@ function sanitizeStore(raw: any): UiLayoutStore {
     if (raw && typeof raw === 'object' && ('shared' in raw || 'accounts' in raw)) {
         const accounts: Record<string, UiLayout> = {};
         for (const [name, l] of Object.entries(raw.accounts || {})) {
-            if (typeof name === 'string' && name.length > 0 && name.length <= 64) accounts[name] = sanitize(l);
+            if (typeof name === 'string' && name.length > 0 && name.length <= MAX_NAME_LEN) accounts[name] = sanitize(l);
         }
         return { shared: sanitize(raw.shared), accounts };
     }
@@ -70,10 +72,10 @@ function sanitize(raw: unknown): UiLayout {
     const out: UiLayout = {};
     if (!raw || typeof raw !== 'object') return out;
     for (const [key, v] of Object.entries(raw as Record<string, any>)) {
-        if (!/^[a-z][a-z0-9-]{0,31}$/.test(key) || !v || typeof v !== 'object') continue;
+        if (!PANEL_KEY.test(key) || !v || typeof v !== 'object') continue;
         const dx = Number(v.dx), dy = Number(v.dy), scale = Number(v.scale);
         if (![dx, dy, scale].every(Number.isFinite)) continue;
-        out[key] = { dx, dy, scale: Math.min(4, Math.max(0.25, scale)) };
+        out[key] = { dx, dy, scale: Math.min(MAX_SCALE, Math.max(MIN_SCALE, scale)) };
     }
     return out;
 }
@@ -87,17 +89,10 @@ function save(next: UiLayoutStore) {
     }
 }
 
+/** Push the whole store to every page except `except` (the sender already has its own edit). */
 function broadcast(except?: Electron.WebContents) {
-    for (const win of BrowserWindow.getAllWindows()) {
-        if (win.isDestroyed()) continue;
-        const targets: Electron.WebContents[] = [win.webContents];
-        for (const view of win.contentView.children) {
-            const wc = (view as any).webContents as Electron.WebContents | undefined;
-            if (wc) targets.push(wc);
-        }
-        for (const wc of targets) {
-            if (!wc.isDestroyed() && wc !== except) wc.send('ui-layout:changed', store);
-        }
+    for (const wc of allWebContents()) {
+        if (wc !== except) wc.send('ui-layout:changed', store);
     }
 }
 
@@ -110,7 +105,7 @@ export function registerUiLayoutIPC() {
         if (scope === 'shared' || typeof scope !== 'string' || !scope) {
             save({ ...current, shared: clean });
         } else {
-            save({ ...current, accounts: { ...current.accounts, [scope.slice(0, 64)]: clean } });
+            save({ ...current, accounts: { ...current.accounts, [scope.slice(0, MAX_NAME_LEN)]: clean } });
         }
         broadcast(event.sender);
     });
@@ -118,16 +113,5 @@ export function registerUiLayoutIPC() {
     ipcMain.on('ui-layout:reset', () => {
         save({ shared: {}, accounts: {} });
         broadcast();
-    });
-    // Diagnostics from uiLayout.js: appended to userData/ui-layout-debug.jsonl so the real HUD
-    // structure can be inspected without a debugger (renderer console logs are not reliably
-    // mirrored into main.log).
-    ipcMain.on('ui-layout:debug', (_event, entry: unknown) => {
-        try {
-            const line = JSON.stringify({ at: new Date().toISOString(), ...(entry as object) }) + '\n';
-            fs.appendFileSync(path.join(app.getPath('userData'), 'ui-layout-debug.jsonl'), line, 'utf8');
-        } catch (e) {
-            log.warn('ui-layout debug write failed:', e);
-        }
     });
 }

@@ -29,7 +29,7 @@ class ConsoleManager {
     }
 
     setupIPCListeners() {
-        window.electron.ipcRenderer.on('add-console-message', (event, data) => {
+        window.electron.ipcRenderer.on('add-console-message', (_event, data) => {
             if (data.level === 'debug') {
                 return; // Skip debug messages
             }
@@ -41,12 +41,12 @@ class ConsoleManager {
         // Filter buttons
         document.querySelectorAll('.filter-btn').forEach(btn => {
             btn.addEventListener('click', (e) => {
-                this.setFilter(e.target.dataset.type);
+                this.setFilter((e.currentTarget as HTMLElement).dataset.type ?? 'all');
             });
         });
 
         // Clear button
-        document.getElementById('clearConsole').addEventListener('click', () => {
+        document.getElementById('clearConsole')?.addEventListener('click', () => {
             this.clearMessages();
         });
     }
@@ -89,7 +89,7 @@ class ConsoleManager {
         
         // Update active filter button
         document.querySelectorAll('.filter-btn').forEach(btn => {
-            btn.classList.toggle('active', btn.dataset.type === type);
+            btn.classList.toggle('active', (btn as HTMLElement).dataset.type === type);
         });
 
         this.renderMessages();
@@ -104,6 +104,7 @@ class ConsoleManager {
     renderMessages() {
         const content = document.getElementById('console-content');
         const emptyState = document.getElementById('emptyState');
+        if (!content || !emptyState) return;
         
         let filteredMessages = this.messages;
         if (this.currentFilter !== 'all') {

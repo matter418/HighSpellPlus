@@ -14,7 +14,8 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 /* Movable HUD edit mode (modifier key held): outlines and corner handles on each panel.
    Outlines are drawn in the overlay from each panel's VISIBLE bounds (see naturalBounds), not
-   with CSS outline on the element, because some containers are far smaller than their contents. */
+   with CSS outline on the element, because some containers are far smaller than their contents.
+   --theme-accent comes from index.css (imported by client.ts); the #f9f449 fallbacks mirror it. */
 
 .hsplus-layout-mode [data-hsplus-panel] {
     cursor: move;

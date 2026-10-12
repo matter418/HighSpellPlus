@@ -16,7 +16,7 @@
 // In the multi-account shell every account is its own view, and in the Multibox layout there
 // is no tab to close it from. This adds a close (×) button at the top of the Highspell+ plugin
 // rail, above the Plugin Hub icon, that asks the shell to close THIS account (same confirmation
-// as closing a tab). Falls back to a small floating button if plugins (and so the rail) are off.
+// as closing a tab). With plugins (and so the rail) off, the caller asks for a floating button.
 
 const BUTTON_ID = 'hsplus-close-account';
 
@@ -41,39 +41,28 @@ function makeButton() {
         e.stopPropagation();
         window.account.requestClose();
     });
-    btn.style.display = accountCount > 1 ? '' : 'none';
     return btn;
 }
 
-function place() {
-    if (document.getElementById(BUTTON_ID)) return true;
-    const bar = document.querySelector('.highlite_bar');
-    if (bar) {
-        bar.prepend(makeButton());
-        return true;
-    }
-    return false;
-}
-
-export function initAccountClose() {
-    if (!window.account || !window.account.embedded) return;
+/**
+ * @param {{ floating?: boolean }} [opts] `floating`: there is no plugin rail (plugins off), so
+ * pin the button to the view's top-right corner instead. Core builds `.highlite_bar` in the
+ * `Highlite` constructor, so with plugins on it already exists when this runs.
+ */
+export function initAccountClose({ floating = false } = {}) {
+    if (!window.account?.embedded) return;
+    if (document.getElementById(BUTTON_ID)) return;
     window.account.onAccountCount((n) => {
         accountCount = n;
         updateVisibility();
     });
-    if (place()) return;
-
-    // The plugin rail is built by core after the game boots; wait for it, then give up on it
-    // and float the button if plugins are disabled.
-    const observer = new MutationObserver(() => {
-        if (place()) observer.disconnect();
-    });
-    observer.observe(document.body, { childList: true, subtree: true });
-    setTimeout(() => {
-        if (document.getElementById(BUTTON_ID)) return;
-        observer.disconnect();
-        const btn = makeButton();
+    const bar = floating ? null : document.querySelector('.highlite_bar');
+    const btn = makeButton();
+    if (bar) {
+        bar.prepend(btn);
+    } else {
         btn.classList.add('hsplus-close-account--floating');
         document.body.appendChild(btn);
-    }, 15000);
+    }
+    updateVisibility();
 }

@@ -65,28 +65,30 @@ app.whenReady().then(async () => {
         updateWindow.close();
     });
 
-    ipcMain.on('no-update-available', async () => {
+    // once: the updater can emit this more than once in a run (an error after
+    // update-not-available, say) and a second call would open a second client window.
+    ipcMain.once('no-update-available', async () => {
         await createClientWindow();
         updateWindow.close();
     });
 
-    // For any future windows created elsewhere, attach a closed handler
-    // to determine when only the console window is left.
+    // Close the console window when it is the only window left. The console is excluded
+    // inside the handler rather than here: this event fires during `new BrowserWindow`,
+    // before the console module has stored its reference, so the outer check would never match.
     app.on('browser-window-created', (_event, win) => {
-        if (win !== getConsoleWindow()) {
-            win.on('closed', () => {
-                const consoleWin = getConsoleWindow();
-                const others = BrowserWindow.getAllWindows().filter(w => w !== consoleWin);
-                if (others.length === 0 && consoleWin && !consoleWin.isDestroyed()) {
-                    consoleWin.close();
-                }
-            });
-        }
+        win.on('closed', () => {
+            const consoleWin = getConsoleWindow();
+            if (win === consoleWin) return;
+            const others = BrowserWindow.getAllWindows().filter(w => w !== consoleWin);
+            if (others.length === 0 && consoleWin && !consoleWin.isDestroyed()) {
+                consoleWin.close();
+            }
+        });
     });
 
     app.on('activate', () => {
-        // On macOS it's common to re-create a window in the app when the
-        // dock icon is clicked and there are no other windows open.
+        // macOS: clicking the dock icon with no windows open re-creates one (with multi-account
+        // on, createClientWindow opens the shell with a first account).
         if (BrowserWindow.getAllWindows().length === 0) {
             createClientWindow();
         }

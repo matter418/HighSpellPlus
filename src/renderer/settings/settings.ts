@@ -1,6 +1,10 @@
 // Use centralized settings API exposed by preload
 import '@iconify/iconify';
-import { playAlertSound } from '../shared/alertSounds';
+import { playAlertSound, DEFAULT_ALERT_VOLUME } from '../shared/alertSounds';
+import { isHexColor } from '../../shared/validators';
+
+/** How long a settings button shows "Done" before its label comes back. */
+const BUTTON_FEEDBACK_MS = 1500;
 
 const isDarwin = window.electron.process.platform === 'darwin';
 // Hide the window controls if the OS is Darwin (macOS)
@@ -95,11 +99,11 @@ function createFieldEl(sectionKey: string, field: any): HTMLElement {
             const btn = document.createElement('button');
             btn.type = 'button';
             btn.textContent = field.buttonText || field.label;
-            btn.className = 'btn btn-secondary setting-action';
+            btn.className = 'btn btn-secondary';
             btn.addEventListener('click', () => {
                 window.electron.ipcRenderer.send(field.action);
                 btn.textContent = 'Done';
-                setTimeout(() => { btn.textContent = field.buttonText || field.label; }, 1500);
+                setTimeout(() => { btn.textContent = field.buttonText || field.label; }, BUTTON_FEEDBACK_MS);
             });
             control = btn;
             break;
@@ -107,7 +111,7 @@ function createFieldEl(sectionKey: string, field: any): HTMLElement {
         case 'color': {
             const input = document.createElement('input');
             input.type = 'color';
-            input.value = typeof settingVal === 'string' && /^#[0-9a-fA-F]{6}$/.test(settingVal) ? settingVal : '#000000';
+            input.value = isHexColor(settingVal) ? settingVal : '#000000';
             input.id = nameAttr;
             input.className = 'setting-input setting-color';
             control = input;
@@ -151,12 +155,18 @@ function createFieldEl(sectionKey: string, field: any): HTMLElement {
         hex.setAttribute('aria-label', `${field.label} hex value`);
         control.addEventListener('input', () => { hex.value = (control as HTMLInputElement).value; });
         hex.addEventListener('input', () => {
-            if (/^#[0-9a-fA-F]{6}$/.test(hex.value)) {
+            if (isHexColor(hex.value)) {
                 (control as HTMLInputElement).value = hex.value;
                 (control as HTMLInputElement).dispatchEvent(new Event('input', { bubbles: true }));
                 (control as HTMLInputElement).dispatchEvent(new Event('change', { bubbles: true }));
             }
         });
+        // A half-typed or bad hex never sticks: on leaving the box, fall back to what the picker holds.
+        const resync = () => {
+            if (!isHexColor(hex.value)) hex.value = (control as HTMLInputElement).value;
+        };
+        hex.addEventListener('blur', resync);
+        hex.addEventListener('change', resync);
         right.appendChild(hex);
     }
 
@@ -169,7 +179,7 @@ function createFieldEl(sectionKey: string, field: any): HTMLElement {
         chooseBtn.addEventListener('click', async () => {
             try {
                 const currentVal = (control as HTMLInputElement).value || (typeof settingVal === 'string' ? settingVal : undefined);
-                    const selected = await window.settings.selectDirectory({
+                const selected = await window.settings.selectDirectory({
                     title: `Select ${field.label}`,
                     defaultPath: currentVal,
                 });
@@ -185,10 +195,13 @@ function createFieldEl(sectionKey: string, field: any): HTMLElement {
         right.appendChild(chooseBtn);
     }
     if (field.preview === 'sound') {
-        // Preview the chosen sound at the volume set in the same section.
+        // Preview the chosen sound at the volume in the field the schema names (ids are "Section:Label",
+        // so getElementById is an exact match with no selector escaping).
         control.addEventListener('change', () => {
-            const volumeInput = document.querySelector<HTMLInputElement>(`[id^="${sectionKey}:"][id*="Volume"]`);
-            const volume = volumeInput ? Number(volumeInput.value) : 60;
+            const volumeInput = field.volumeField
+                ? (document.getElementById(`${sectionKey}:${field.volumeField}`) as HTMLInputElement | null)
+                : null;
+            const volume = volumeInput ? Number(volumeInput.value) : DEFAULT_ALERT_VOLUME;
             playAlertSound((control as HTMLSelectElement).value, volume);
         });
     }
@@ -295,9 +308,9 @@ async function renderSettings() {
 
         (section.fields || []).forEach((field: any) => {
             const fieldEl = createFieldEl(sectionKey, field);
-            // collect controls and seed snapshot
-            // Buttons are actions, not values: they take no part in dirty tracking or saving.
-            const control = field.type === 'button' ? null : fieldEl.querySelector('.setting-input') as HTMLElement | null;
+            // collect controls and seed snapshot. Buttons are actions, not values: they render no
+            // .setting-input, so they take no part in dirty tracking or saving.
+            const control = fieldEl.querySelector('.setting-input') as HTMLElement | null;
             if (control) {
                 const key = `${sectionKey}:${field.label}`;
                 (control as HTMLElement).setAttribute('data-key', key);
@@ -332,15 +345,16 @@ async function renderSettings() {
         snapshot.set(key, getVal(c));
     });
 
+    // True when a control's value differs from the snapshot; an empty number box is NaN both
+    // times, and NaN !== NaN, so that case is normalised to "unchanged".
+    const hasChanged = (key: string, cur: string | number | boolean) => {
+        const base = snapshot.get(key);
+        if (typeof base === 'number' && typeof cur === 'number' && isNaN(base) && isNaN(cur)) return false;
+        return cur !== base;
+    };
+
     const evaluateDirty = () => {
-        const isDirty = controls.some((c) => {
-            const key = (c as HTMLElement).getAttribute('data-key')!;
-            const cur = getVal(c);
-            const base = snapshot.get(key);
-            // normalize numbers that are NaN vs empty
-            if (typeof base === 'number' && typeof cur === 'number' && isNaN(base) && isNaN(cur)) return false;
-            return cur !== base;
-        });
+        const isDirty = controls.some((c) => hasChanged((c as HTMLElement).getAttribute('data-key')!, getVal(c)));
         actionBar.classList.toggle('visible', isDirty);
     };
 
@@ -378,7 +392,7 @@ async function renderSettings() {
             merged[sectionKey] ||= {};
             const value = getVal(c);
             merged[sectionKey][label] = value;
-            if (value !== snapshot.get(key) && fieldsByKey.get(key)?.restart) needsRestart = true;
+            if (hasChanged(key, value) && fieldsByKey.get(key)?.restart) needsRestart = true;
         });
 
         // Save new values via settings API

@@ -16,14 +16,16 @@
 
 import { contextBridge, ipcRenderer } from 'electron';
 import { electronAPI } from '@electron-toolkit/preload';
+import type { AccountState, PanelLayout, ShellState, UiLayoutStore } from '../shared/shellTypes';
 
 const settingsAPI = {
-    get: async (section, key) => ipcRenderer.invoke('settings:get', section, key),
-    set: async (section, key, value) => ipcRenderer.invoke('settings:set', section, key, value),
+    get: async (section: string, key: string) => ipcRenderer.invoke('settings:get', section, key),
+    set: async (section: string, key: string, value: unknown) => ipcRenderer.invoke('settings:set', section, key, value),
     getAll: async () => ipcRenderer.invoke('settings:getAll'),
-    getByName: async (label) => ipcRenderer.invoke('settings:getByName', label),
-    selectDirectory: async (options) => ipcRenderer.invoke('settings:select-directory', options),
-    validateDirectory: async (dirPath) => ipcRenderer.invoke('settings:validate-directory', dirPath),
+    getByName: async (label: string) => ipcRenderer.invoke('settings:getByName', label),
+    selectDirectory: async (options?: { title?: string; defaultPath?: string }) =>
+        ipcRenderer.invoke('settings:select-directory', options),
+    validateDirectory: async (dirPath: string) => ipcRenderer.invoke('settings:validate-directory', dirPath),
 };
 
 const screenshotAPI = {
@@ -39,7 +41,7 @@ const accountAPI = {
     onVisibility: (cb: (visible: boolean) => void) => {
         ipcRenderer.on('account:visibility', (_event, visible: boolean) => cb(visible));
     },
-    setState: (state: 'loading' | 'login' | 'ingame' | 'crashed') => ipcRenderer.send('account:state', state),
+    setState: (state: AccountState) => ipcRenderer.send('account:state', state),
     notifyWarning: (level: 'warning' | 'error') => ipcRenderer.send('account:warning', level),
     notifyAttention: (kind: string) => ipcRenderer.send('account:attention', kind),
     clearAttention: () => ipcRenderer.send('account:attention', null),
@@ -51,16 +53,15 @@ const accountAPI = {
     },
 };
 
-// Per-client HUD layout (movable/resizable game panels); shared by every window and view.
+// Movable/resizable HUD panel layout (uiLayout.js); the store holds a shared layout plus one
+// per character, and every change is broadcast to every window and view.
 const uiLayoutAPI = {
-    get: () => ipcRenderer.invoke('ui-layout:get'),
+    get: () => ipcRenderer.invoke('ui-layout:get') as Promise<UiLayoutStore>,
     /** scope: 'shared' or a character name. */
-    set: (scope: string, layout: Record<string, { dx: number; dy: number; scale: number }>) =>
-        ipcRenderer.send('ui-layout:set', scope, layout),
-    onChanged: (cb: (store: unknown) => void) => {
-        ipcRenderer.on('ui-layout:changed', (_e, l) => cb(l));
+    set: (scope: string, layout: Record<string, PanelLayout>) => ipcRenderer.send('ui-layout:set', scope, layout),
+    onChanged: (cb: (store: UiLayoutStore) => void) => {
+        ipcRenderer.on('ui-layout:changed', (_e, store: UiLayoutStore) => cb(store));
     },
-    debug: (entry: unknown) => ipcRenderer.send('ui-layout:debug', entry),
 };
 
 // Used only by shell.html.
@@ -72,11 +73,23 @@ const shellAPI = {
     activate: (slot: number) => ipcRenderer.send('shell:activate', slot),
     add: () => ipcRenderer.send('shell:add'),
     close: (slot: number) => ipcRenderer.send('shell:close', slot),
-    onState: (cb: (state: any) => void) => { ipcRenderer.on('shell:state', (_e, s) => cb(s)); },
-    onPreview: (cb: (p: { slot: number; dataUrl: string }) => void) => { ipcRenderer.on('shell:preview', (_e, p) => cb(p)); },
-    onWarning: (cb: (w: { slot: number; level: string }) => void) => { ipcRenderer.on('shell:warning', (_e, w) => cb(w)); },
-    onToggleCollapsed: (cb: () => void) => { ipcRenderer.on('shell:toggle-collapsed', () => cb()); },
-    onSettingsChanged: (cb: () => void) => { ipcRenderer.on('settings:changed', () => cb()); },
+    /** The user dismissed the warning indicator; views re-arm their console forwarding. */
+    clearWarning: () => ipcRenderer.send('shell:clear-warning'),
+    onState: (cb: (state: ShellState) => void) => {
+        ipcRenderer.on('shell:state', (_e, s: ShellState) => cb(s));
+    },
+    onPreview: (cb: (p: { slot: number; dataUrl: string }) => void) => {
+        ipcRenderer.on('shell:preview', (_e, p) => cb(p));
+    },
+    onWarning: (cb: (w: { slot: number; level: string }) => void) => {
+        ipcRenderer.on('shell:warning', (_e, w) => cb(w));
+    },
+    onToggleCollapsed: (cb: () => void) => {
+        ipcRenderer.on('shell:toggle-collapsed', () => cb());
+    },
+    onSettingsChanged: (cb: () => void) => {
+        ipcRenderer.on('settings:changed', () => cb());
+    },
 };
 
 if (process.contextIsolated) {

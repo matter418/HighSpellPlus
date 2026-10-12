@@ -29,6 +29,20 @@ export function registerWebContents(wc: WebContents, win: BrowserWindow, activeG
     wc.once('destroyed', () => owners.delete(wc.id));
 }
 
+/** Every live page that can receive IPC: each window's own page plus its child views (the game views). */
+export function allWebContents(): WebContents[] {
+    const out: WebContents[] = [];
+    for (const win of BrowserWindow.getAllWindows()) {
+        if (win.isDestroyed()) continue;
+        out.push(win.webContents);
+        for (const view of win.contentView.children) {
+            const wc = (view as { webContents?: WebContents }).webContents;
+            if (wc && !wc.isDestroyed()) out.push(wc);
+        }
+    }
+    return out;
+}
+
 /** The BrowserWindow a sender lives in, whether it is the window's own page or a child view. */
 export function resolveWindow(sender: WebContents): BrowserWindow | null {
     const direct = BrowserWindow.fromWebContents(sender);

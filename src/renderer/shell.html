@@ -34,16 +34,15 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>. -->
             </div>
 
             <div id="iconbar">
-                <!-- Multibox layout has no strip or dock, so adding accounts lives here -->
+                <!-- Multibox layout has no strip or dock, so adding accounts lives here.
+                     Tooltips (with shortcuts) and the collapse chevron are filled in by shell.ts. -->
                 <div id="multibox-controls">
-                    <a id="multiboxAdd" href="#" title="Add account (Ctrl+Shift+T)" aria-label="Add account">
+                    <a id="multiboxAdd" href="#" aria-label="Add account">
                         <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
                     </a>
                     <span id="multiboxCount" class="acct-count"></span>
                 </div>
-                <a id="collapseBtn" href="#" title="Hide account bar (Ctrl+`)" aria-label="Hide account bar">
-                    <svg class="collapse-chevron" aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 15l6-6 6 6"/></svg>
-                </a>
+                <a id="collapseBtn" href="#" aria-label="Hide account dock"></a>
                 <a href="https://discord.gg/highspell" target="_blank" rel="noopener noreferrer" title="Discord">
                     <i class="iconify" data-icon="simple-icons:discord"></i>
                 </a>

@@ -17,12 +17,13 @@
 //
 // One BrowserWindow whose own page (shell.html) draws the title bar and the account
 // strip/dock, plus one WebContentsView per account that loads the normal client.html
-// loader. Only the active view is visible; the others keep running (backgroundThrottling
-// off + the client's frame throttle) so their sessions stay logged in.
+// loader. In the tab and dock layouts only the active view is visible; the others keep
+// running (backgroundThrottling off + the client's frame throttle) so their sessions stay
+// logged in. The multibox layout shows every view at once in a grid.
 //
-// Slot 1 uses the default session so an existing single-account install keeps its cached
-// client, hooks and plugin settings. Slots 2–6 get their own persistent partition so
-// cookies, localStorage and IndexedDB never collide between accounts.
+// Every account shares the default session (cached client, hooks and installed plugins
+// carry over) unless the "Isolate Account Sessions" setting is on, in which case slots 2–6
+// get their own persistent partition so cookies and storage never collide.
 
 import {
     app,
@@ -41,10 +42,12 @@ import { format } from 'url';
 import log from 'electron-log';
 import { settingsService } from '../../modules/settingsManagement';
 import { registerWebContents } from '../../modules/windowRegistry';
+import { wireGameWebContents } from '../../modules/gameWebContents';
+import type { AccountState, ShellConfig } from '../../../shared/shellTypes';
+
+export type { AccountState, ShellConfig };
 
 export const MAX_ACCOUNTS = 6;
-
-export type AccountState = 'loading' | 'login' | 'ingame' | 'crashed';
 
 interface Account {
     slot: number;
@@ -57,43 +60,25 @@ interface Account {
     previewBusy: boolean;
 }
 
-export interface ShellConfig {
-    layout: 'top' | 'bottom' | 'left' | 'right' | 'multibox';
-    previews: boolean;
-    startCollapsed: boolean;
-    /** Hidden-view render rate and dock thumbnail refresh rate. */
-    fps: number;
-    isolateSessions: boolean;
-    /** #rrggbb used for the idle flash on tabs and dock cards. */
-    attentionColor: string;
-    max: number;
-}
-
 const PREVIEW_WIDTH = 240;
 const PREVIEW_JPEG_QUALITY = 70;
+/** Delay before the second focus() in focusActive(), long enough for the compositor to apply a visibility change. */
+const FOCUS_RETRY_MS = 50;
+const LAYOUTS: ShellConfig['layout'][] = ['top', 'bottom', 'left', 'right', 'multibox'];
+const ACCOUNT_STATES: AccountState[] = ['loading', 'login', 'ingame', 'crashed'];
 
 const preloadPath = path.join(__dirname, '../preload/index.js');
 const preparedSessions = new WeakSet<Session>();
 
-function clientUrl(): string {
+/** URL of one of our renderer pages: the Vite dev server in development, the packaged file otherwise. */
+function rendererUrl(page: 'client.html' | 'shell.html'): string {
     if (!app.isPackaged && process.env['ELECTRON_RENDERER_URL']) {
-        return `${process.env['ELECTRON_RENDERER_URL']}/client.html`;
+        return `${process.env['ELECTRON_RENDERER_URL']}/${page}`;
     }
     return format({
         protocol: 'file',
         slashes: true,
-        pathname: path.join(__dirname, '../renderer/client.html'),
-    });
-}
-
-function shellUrl(): string {
-    if (!app.isPackaged && process.env['ELECTRON_RENDERER_URL']) {
-        return `${process.env['ELECTRON_RENDERER_URL']}/shell.html`;
-    }
-    return format({
-        protocol: 'file',
-        slashes: true,
-        pathname: path.join(__dirname, '../renderer/shell.html'),
+        pathname: path.join(__dirname, '../renderer', page),
     });
 }
 
@@ -126,13 +111,17 @@ function accountNameFromTitle(title: string): string {
     return m ? m[1].trim() : '';
 }
 
+/**
+ * The MultiAccount settings as the shell uses them. settingsService already fills in schema
+ * defaults; the fallbacks here only guard against a hand-edited settings.json.
+ */
 function readConfig(): ShellConfig {
     const layout = String(settingsService.get('MultiAccount', 'Account Bar Position') ?? 'top');
     const fps = Number(settingsService.get('MultiAccount', 'Background Frame Rate'));
     const color = String(settingsService.get('MultiAccount', 'Idle Alert Color') ?? '');
     return {
         attentionColor: /^#[0-9a-fA-F]{6}$/.test(color) ? color : '#f9f449',
-        layout: (['top', 'bottom', 'left', 'right', 'multibox'].includes(layout) ? layout : 'top') as ShellConfig['layout'],
+        layout: (LAYOUTS as string[]).includes(layout) ? layout as ShellConfig['layout'] : 'top',
         previews: settingsService.get('MultiAccount', 'Live Previews') !== false,
         startCollapsed: settingsService.get('MultiAccount', 'Start Collapsed') === true,
         fps: Number.isFinite(fps) && fps > 0 ? Math.min(60, fps) : 15,
@@ -151,7 +140,7 @@ function multiboxRects(n: number, b: Rectangle): Rectangle[] {
         x: Math.round(b.x + x * b.width), y: Math.round(b.y + y * b.height),
         width: Math.max(1, Math.round(w * b.width)), height: Math.max(1, Math.round(h * b.height)),
     });
-    switch (Math.min(6, Math.max(1, n))) {
+    switch (Math.min(MAX_ACCOUNTS, Math.max(1, n))) {
         case 1: return [r(0, 0, 1, 1)];
         case 2: return [r(0, 0, 0.5, 1), r(0.5, 0, 0.5, 1)];
         case 3: return [r(0, 0, 0.5, 1), r(0.5, 0, 0.5, 0.5), r(0.5, 0.5, 0.5, 0.5)];
@@ -183,6 +172,9 @@ class ShellWindow {
     private readonly shellWcId: number;
     // Decided once per window: switching mid-run would split accounts across profiles.
     private readonly isolateSessions = readConfig().isolateSessions;
+    // Re-read whenever settings are saved; applyBounds() runs on every resize tick and should
+    // not go back to the settings file each time.
+    private layout: ShellConfig['layout'] = readConfig().layout;
 
     constructor() {
         this.win = new BrowserWindow({
@@ -205,6 +197,7 @@ class ShellWindow {
         shells.set(this.shellWcId, this);
         registerWebContents(this.win.webContents, this.win, () => this.activeWebContents());
 
+        // The shell page is not a game page, but it gets the same link/F12/shortcut handling.
         this.win.webContents.setWindowOpenHandler(({ url }) => {
             electronShell.openExternal(url);
             return { action: 'deny' };
@@ -237,12 +230,18 @@ class ShellWindow {
         this.win.on('closed', () => this.destroy());
 
         // settingsManagement emits this internal event after any save; the layout may have
-        // switched between multibox and a tab/dock layout, which changes every view's bounds.
-        const onSettings = () => { if (!this.win.isDestroyed()) this.applyBounds(); };
+        // switched between multibox and a tab/dock layout (which changes every view's bounds)
+        // and the preview rate or visibility may have changed.
+        const onSettings = () => {
+            if (this.win.isDestroyed()) return;
+            this.layout = readConfig().layout;
+            this.applyBounds();
+            this.syncPreviewTimer();
+        };
         ipcMain.on('settings:changed', onSettings);
         this.win.once('closed', () => ipcMain.removeListener('settings:changed', onSettings));
 
-        this.win.loadURL(shellUrl());
+        this.win.loadURL(rendererUrl('shell.html'));
 
         // First account is opened straight away so the window is never empty.
         this.addAccount();
@@ -292,38 +291,8 @@ class ShellWindow {
 
         shells.set(wc.id, this);
         registerWebContents(wc, this.win, () => this.activeWebContents());
+        wireGameWebContents(wc, { slot, onKeyDown: (event, input) => this.handleShortcut(event, input) });
 
-        if (!app.isPackaged) {
-            wc.setUserAgent(
-                'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-            );
-        }
-        wc.setWindowOpenHandler(({ url }) => {
-            electronShell.openExternal(url);
-            return { action: 'deny' };
-        });
-        wc.on('before-input-event', (event, input) => {
-            if (input.type !== 'keyDown') return;
-            if (input.key === 'F12') {
-                event.preventDefault();
-                wc.toggleDevTools();
-                return;
-            }
-            this.handleShortcut(event, input);
-        });
-        wc.on('zoom-changed', (_event, zoomDirection) => {
-            const delta = zoomDirection === 'in' ? 0.1 : -0.1;
-            wc.setZoomLevel(wc.getZoomLevel() + delta);
-        });
-        wc.on('console-message', (event) => {
-            ipcMain.emit('add-console-message', {
-                level: event.level,
-                text: event.message,
-                lineNumber: event.lineNumber,
-                source: event.sourceId,
-                slot,
-            });
-        });
         wc.on('page-title-updated', (_event, title) => {
             account.name = accountNameFromTitle(title);
             this.broadcastState();
@@ -336,17 +305,21 @@ class ShellWindow {
             // a tab. Re-focus now that there is a document to receive it.
             if (account.slot === this.activeSlot) this.focusActive();
             wc.send('account:count', this.accounts.length);
+            // applyBounds() may have run before this page existed (another account was added
+            // while this one was loading); without this the frame throttle would think the
+            // view is visible and the game loop would stall once it is hidden.
+            wc.send('account:visibility', this.isMultibox() || account.slot === this.activeSlot);
             this.broadcastState();
         });
         wc.on('focus', () => {
             // In multibox every view is visible and a click moves focus; track it so Ctrl+Shift+W
             // and the idle-alert "active" logic follow the account the user is actually in.
-            if (this.activeSlot !== slot && this.accounts.some(a => a.slot === slot)) {
-                this.activeSlot = slot;
-                const acct = this.accounts.find(a => a.slot === slot);
-                if (acct) acct.attention = null;
-                this.broadcastState();
-            }
+            if (this.activeSlot === slot) return;
+            const acct = this.accounts.find(a => a.slot === slot);
+            if (!acct) return;
+            this.activeSlot = slot;
+            acct.attention = null;
+            this.broadcastState();
         });
         wc.on('render-process-gone', (_event, details) => {
             log.error(`Account ${slot} renderer gone: ${details.reason}`);
@@ -355,7 +328,7 @@ class ShellWindow {
         });
 
         this.win.contentView.addChildView(view);
-        wc.loadURL(clientUrl());
+        wc.loadURL(rendererUrl('client.html'));
 
         this.activate(slot);
         this.syncPreviewTimer();
@@ -363,7 +336,16 @@ class ShellWindow {
     }
 
     private isMultibox(): boolean {
-        return readConfig().layout === 'multibox';
+        return this.layout === 'multibox';
+    }
+
+    /** The account's live webContents, or null once the view has been torn down (reading it then throws). */
+    private wcOf(a: Account): WebContents | null {
+        try {
+            return a.view.webContents.isDestroyed() ? null : a.view.webContents;
+        } catch {
+            return null;
+        }
     }
 
     activate(slot: number) {
@@ -384,9 +366,7 @@ class ShellWindow {
             const visible = multibox || a.slot === this.activeSlot;
             a.view.setBounds(rects ? rects[i] : this.contentBounds);
             a.view.setVisible(visible);
-            if (!a.view.webContents.isDestroyed()) {
-                a.view.webContents.send('account:visibility', visible);
-            }
+            this.wcOf(a)?.send('account:visibility', visible);
         });
     }
 
@@ -402,7 +382,7 @@ class ShellWindow {
         wc.focus();
         setTimeout(() => {
             if (!wc.isDestroyed() && this.activeWebContents() === wc && this.win.isFocused()) wc.focus();
-        }, 50);
+        }, FOCUS_RETRY_MS);
     }
 
     async closeAccount(slot: number, confirm = true) {
@@ -475,14 +455,14 @@ class ShellWindow {
         this.sendToShell('shell:warning', { slot: account.slot, level });
     }
 
+    /** The user dismissed the shell's warning indicator: let every view re-arm its own forwarding. */
+    clearWarnings() {
+        for (const a of this.accounts) this.wcOf(a)?.send('account:warning-cleared');
+    }
+
     activeWebContents(): WebContents | null {
         const a = this.accounts.find(x => x.slot === this.activeSlot);
-        if (!a) return null;
-        try {
-            return a.view.webContents.isDestroyed() ? null : a.view.webContents;
-        } catch {
-            return null; // view already torn down with the window
-        }
+        return a ? this.wcOf(a) : null;
     }
 
     // ---- layout ---------------------------------------------------------------------------
@@ -529,9 +509,7 @@ class ShellWindow {
     broadcastState() {
         // Every view learns the account count (the in-view × hides itself when it is the last one).
         for (const a of this.accounts) {
-            try {
-                if (!a.view.webContents.isDestroyed()) a.view.webContents.send('account:count', this.accounts.length);
-            } catch { /* torn down */ }
+            this.wcOf(a)?.send('account:count', this.accounts.length);
         }
         if (!this.shellReady) return;
         this.sendToShell('shell:state', {
@@ -549,14 +527,19 @@ class ShellWindow {
 
     // ---- previews ---------------------------------------------------------------------------
 
-    /** (Re)arm the thumbnail timer at the configured frame rate; called on add/close and on each tick. */
+    /**
+     * (Re)arm the thumbnail timer at the configured frame rate, or stop it when thumbnails are
+     * not needed; called when accounts are added/closed and when settings change. Thumbnails
+     * are only shown in the dock layouts (a popover over the game area would be drawn
+     * underneath the active view), so the tab and multibox layouts never capture.
+     */
     private syncPreviewTimer() {
-        const want = this.accounts.length > 1;
-        const fps = readConfig().fps;
-        if (want && (!this.previewTimer || fps !== this.previewFps)) {
+        const cfg = readConfig();
+        const want = this.accounts.length > 1 && cfg.previews && (cfg.layout === 'left' || cfg.layout === 'right');
+        if (want && (!this.previewTimer || cfg.fps !== this.previewFps)) {
             if (this.previewTimer) clearInterval(this.previewTimer);
-            this.previewFps = fps;
-            this.previewTimer = setInterval(() => this.capturePreviews(), Math.round(1000 / fps));
+            this.previewFps = cfg.fps;
+            this.previewTimer = setInterval(() => this.capturePreviews(), Math.round(1000 / cfg.fps));
         } else if (!want && this.previewTimer) {
             clearInterval(this.previewTimer);
             this.previewTimer = null;
@@ -564,22 +547,13 @@ class ShellWindow {
         }
     }
 
+    /** One timer tick: snapshot every inactive account and send the thumbnail to the shell page. */
     private capturePreviews() {
-        const cfg = readConfig();
-        if (cfg.fps !== this.previewFps) this.syncPreviewTimer();
-        // Thumbnails are only shown in the dock layouts (a popover over the game area would be
-        // drawn underneath the active view), so don't pay for captures in the tab or multibox layouts.
-        const wantsThumbs = cfg.previews && (cfg.layout === 'left' || cfg.layout === 'right');
-        if (!wantsThumbs || this.win.isDestroyed()) return;
+        if (this.win.isDestroyed()) return;
         for (const a of this.accounts) {
             if (a.slot === this.activeSlot || a.previewBusy || a.state === 'crashed') continue;
-            let wc: WebContents;
-            try {
-                wc = a.view.webContents;
-            } catch {
-                continue;
-            }
-            if (wc.isDestroyed()) continue;
+            const wc = this.wcOf(a);
+            if (!wc) continue;
             a.previewBusy = true;
             wc.capturePage(undefined, { stayHidden: true, stayAwake: true })
                 .then(img => {
@@ -628,14 +602,32 @@ function registerShellIPC() {
 
     ipcMain.handle('shell:get-config', () => readConfig());
     ipcMain.on('shell:ready', (event) => shellFor(event.sender)?.markShellReady());
-    ipcMain.on('shell:content-bounds', (event, bounds: Rectangle) => shellFor(event.sender)?.setContentBounds(bounds));
-    ipcMain.on('shell:activate', (event, slot: number) => shellFor(event.sender)?.activate(Number(slot)));
+    ipcMain.on('shell:content-bounds', (event, bounds: unknown) => {
+        if (!bounds || typeof bounds !== 'object') return;
+        const b = bounds as Record<string, unknown>;
+        shellFor(event.sender)?.setContentBounds({
+            x: Number(b.x) || 0, y: Number(b.y) || 0, width: Number(b.width) || 0, height: Number(b.height) || 0,
+        });
+    });
+    ipcMain.on('shell:activate', (event, slot: unknown) => shellFor(event.sender)?.activate(Number(slot)));
     ipcMain.on('shell:add', (event) => shellFor(event.sender)?.addAccount());
-    ipcMain.on('shell:close', (event, slot: number) => { void shellFor(event.sender)?.closeAccount(Number(slot)); });
+    ipcMain.on('shell:close', (event, slot: unknown) => { void shellFor(event.sender)?.closeAccount(Number(slot)); });
+    ipcMain.on('shell:clear-warning', (event) => shellFor(event.sender)?.clearWarnings());
 
-    ipcMain.on('account:state', (event, state: AccountState) => shellFor(event.sender)?.setAccountState(event.sender, state));
-    ipcMain.on('account:warning', (event, level: string) => shellFor(event.sender)?.forwardWarning(event.sender, level));
-    ipcMain.on('account:attention', (event, kind: string | null) => shellFor(event.sender)?.setAttention(event.sender, kind));
+    // The account channels are sent from inside the game page, which the game bundle and every
+    // plugin share with our preload bridge, so their payloads are checked rather than trusted.
+    ipcMain.on('account:state', (event, state: unknown) => {
+        if ((ACCOUNT_STATES as unknown[]).includes(state)) {
+            shellFor(event.sender)?.setAccountState(event.sender, state as AccountState);
+        }
+    });
+    ipcMain.on('account:warning', (event, level: unknown) => {
+        if (level === 'warning' || level === 'error') shellFor(event.sender)?.forwardWarning(event.sender, level);
+    });
+    ipcMain.on('account:attention', (event, kind: unknown) => {
+        const clean = typeof kind === 'string' ? kind.slice(0, 32) : null;
+        shellFor(event.sender)?.setAttention(event.sender, clean);
+    });
     ipcMain.on('account:close', (event) => shellFor(event.sender)?.closeAccountOf(event.sender));
 }
 
@@ -643,7 +635,7 @@ export function getShellWindow(): BrowserWindow | null {
     return currentShell && !currentShell.win.isDestroyed() ? currentShell.win : null;
 }
 
-/** Second launch / macOS activate while a shell exists: open another account in it. */
+/** Second launch of the app while a shell exists: open another account in it instead of a window. */
 export function addAccountToShell(): boolean {
     if (!currentShell || currentShell.win.isDestroyed()) return false;
     currentShell.addAccount();

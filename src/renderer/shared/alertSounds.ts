@@ -13,23 +13,26 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-// The ONE master list of alert sounds, shared by the client (multi-account idle alert, the
+// The ONE place alert sounds are played, shared by the client (multi-account idle alert, the
 // settings window's preview) and the Chat+ plugin (alert words), so every alert in Highspell+
 // offers the same choices. Five are synthesised with the Web Audio API; "Idle Alert" is the
 // Idle Alert plugin's mp3 (see idleAlertSound.ts for provenance).
 //
-// Adding a sound: add its name here and a case in playAlertSound; both consumers pick it up.
+// The name list lives in src/shared/alertSoundNames.ts (DOM-free, so the settings schema can
+// build its dropdown from it). Adding a sound: add its name there and a case in playAlertSound.
 
+import { ALERT_SOUND_NAMES, DEFAULT_ALERT_VOLUME } from '../../shared/alertSoundNames';
 import { IDLE_ALERT_MP3_DATA_URL } from './idleAlertSound';
 
-export const ALERT_SOUNDS = ['Ding', 'Chime', 'Bell', 'Blip', 'Knock', 'Idle Alert'] as const;
+export { ALERT_SOUND_NAMES, DEFAULT_ALERT_VOLUME };
+export const ALERT_SOUNDS = ALERT_SOUND_NAMES;
 export type AlertSound = (typeof ALERT_SOUNDS)[number];
 
 let audioCtx: AudioContext | null = null;
 
 function clampVolume(volumePct: unknown): number {
     const pct = Number(volumePct);
-    return (Number.isFinite(pct) ? Math.min(100, Math.max(0, pct)) : 60) / 100;
+    return (Number.isFinite(pct) ? Math.min(100, Math.max(0, pct)) : DEFAULT_ALERT_VOLUME) / 100;
 }
 
 /**
@@ -53,13 +56,13 @@ export function playAlertSound(name: string, volumePct: unknown): void {
     }
 
     try {
-        const Ctx = window.AudioContext || (window as any).webkitAudioContext;
-        if (!Ctx) return;
-        if (!audioCtx) audioCtx = new Ctx();
+        if (!audioCtx) audioCtx = new AudioContext();
         const ctx = audioCtx;
         if (ctx.state === 'suspended') ctx.resume().catch(() => {});
         const t0 = ctx.currentTime;
 
+        // 0.25 leaves headroom: a sound's oscillators overlap (up to three at once in Bell)
+        // and each peaks at 1, so the sum would clip at full volume.
         const master = ctx.createGain();
         master.gain.value = 0.25 * vol;
         master.connect(ctx.destination);

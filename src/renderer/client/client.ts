@@ -37,6 +37,7 @@ if (window.account?.embedded) {
     initFrameThrottle();
     window.account.onVisibility(visible => setHidden(!visible));
     const applyFrameRate = async () => {
+        // 15 must match the setting's default in src/preload/settings.ts.
         setHiddenFrameRate(Number(await window.settings.get('MultiAccount', 'Background Frame Rate')) || 15);
     };
     await applyFrameRate();
@@ -277,7 +278,7 @@ import('./helpers/userHelper').then(module => {
     module.createUserHelper();
 });
 
-// Movable / resizable HUD (modifier + drag), layout shared across all accounts.
+// Movable / resizable HUD (modifier + drag); layout shared or per-character, see uiLayout.js.
 initUiLayout();
 
 if (await window.settings.getByName('Enable Plugins')) {
@@ -313,11 +314,13 @@ if (await window.settings.getByName('Enable Plugins')) {
         console.error('[Highspell+] Error loading plugins:', error);
     }
     await highlite.start();
-    // Multi-account shell only: flash this account's tab when its character goes idle.
+    // Multi-account shell only: flash this account's tab when its character goes idle. Lives in
+    // this branch on purpose: it reads document.highlite.gameHooks, which only exists once core
+    // has run, so there is no idle alert with plugins off.
     initIdleWatch();
-    initAccountClose();
+    initAccountClose(); // the plugin rail exists since `new Highlite()`; the button goes in it
 } else {
-    initAccountClose(); // no plugin rail: floats a close button instead
+    initAccountClose({ floating: true }); // no plugin rail: float the close button instead
     for (const element of document.getElementsByClassName('highlite-ui')) {
         element.remove();
     }

@@ -12,25 +12,30 @@ You should have received a copy of the GNU General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-/* Multi-account shell: title bar + account strip/dock around the game views. */
+/* Multi-account shell: title bar + account strip/dock around the game views.
+   Loaded after index.css, which supplies the theme tokens, --titlebar-height and the title bar. */
 
 :root {
-    --titlebar-height: 28px;
     --shell-green: #00de7a;
     --shell-green-dark: #0b1a12;
     --shell-chip-bg: #22252b;
     --shell-chip-active-bg: #121316;
     --shell-dock-bg: #1b1d21;
     --shell-border: #2b2f36;
+    --shell-dashed: #3a3f48;
+    --shell-text: #c8ccd2;
     --shell-muted: #9aa0a8;
     --shell-dim: #6f7682;
+    /* Same as index.css's .highlite_titlebar background/border, so the strips read as part of it. */
+    --shell-bar-bg: #141414;
+    --shell-bar-border: #353535;
     /* Idle flash color; overridden at runtime from the "Idle Alert Color" setting. */
     --shell-attention: #f9f449;
 }
 
 html, body {
     height: 100%;
-    background: #141414;
+    background: var(--shell-bar-bg);
     font-family: 'Inter', sans-serif;
     font-size: 13px;
     color: var(--theme-text-primary);
@@ -67,11 +72,9 @@ body {
     margin-right: 10px;
 }
 
-#warningIndicator .warning-icon.warning { color: var(--theme-accent, #f9f449) !important; }
-#warningIndicator .warning-icon.error   { color: var(--theme-danger, #ef4444) !important; }
-
-/* Collapse chevrons (title bar + dock header) point toward the edge the bar/dock hides into,
-   and flip once it is collapsed. The SVG itself points up. */
+/* Collapse chevrons (title bar + dock header) point toward the edge the dock hides into and
+   flip once it is collapsed. The SVG itself points up. Only docks collapse, so only the left
+   and right layouts need a rotation. */
 .collapse-chevron {
     display: block;
     transition: transform 0.15s ease;
@@ -81,8 +84,8 @@ body {
     height: 22px;
     margin: 0 2px;
     border-radius: 6px;
-    border: 1px solid #2b2f36;
-    background: #22252b;
+    border: 1px solid var(--shell-border);
+    background: var(--shell-chip-bg);
     align-items: center;
     justify-content: center;
 }
@@ -102,19 +105,15 @@ body[data-layout="multibox"] #multibox-controls { display: flex; }
     width: 22px;
     height: 22px;
     border-radius: 6px;
-    border: 1px dashed #3a3f48;
+    border: 1px dashed var(--shell-dashed);
     color: var(--shell-muted);
     align-items: center;
     justify-content: center;
 }
 #multiboxAdd:hover { color: #fff; border-color: var(--shell-muted); }
 #multibox-controls .acct-count { margin-left: 0; align-self: center; }
-body[data-layout="top"]    .collapse-chevron { transform: rotate(0deg); }
-body[data-layout="bottom"] .collapse-chevron { transform: rotate(180deg); }
 body[data-layout="left"]   .collapse-chevron { transform: rotate(-90deg); }
 body[data-layout="right"]  .collapse-chevron { transform: rotate(90deg); }
-body.collapsed[data-layout="top"]    .collapse-chevron { transform: rotate(180deg); }
-body.collapsed[data-layout="bottom"] .collapse-chevron { transform: rotate(0deg); }
 body.collapsed[data-layout="left"]   .collapse-chevron { transform: rotate(90deg); }
 body.collapsed[data-layout="right"]  .collapse-chevron { transform: rotate(-90deg); }
 
@@ -138,22 +137,17 @@ body.collapsed[data-layout="right"]  .collapse-chevron { transform: rotate(-90de
 
 .acct-strip {
     display: none;
-    align-items: flex-end;
+    flex: 0 0 36px;
+    align-items: center;
     gap: 4px;
     min-width: 0;
+    padding: 0 8px;
+    background: var(--shell-bar-bg);
+    overflow: hidden;
     -webkit-app-region: no-drag;
 }
-
-#strip-top,
-#strip-bottom {
-    flex: 0 0 36px;
-    background: #141414;
-    padding: 0 8px;
-    align-items: center;
-    overflow: hidden;
-}
-#strip-top    { border-bottom: 1px solid #353535; }
-#strip-bottom { border-top: 1px solid #353535; }
+#strip-top    { border-bottom: 1px solid var(--shell-bar-border); }
+#strip-bottom { border-top: 1px solid var(--shell-bar-border); }
 
 body[data-layout="top"] #strip-top,
 body[data-layout="bottom"] #strip-bottom {
@@ -170,7 +164,7 @@ body[data-layout="bottom"] #strip-bottom {
     border: 1px solid var(--shell-border);
     border-radius: 6px;
     background: var(--shell-chip-bg);
-    color: #c8ccd2;
+    color: var(--shell-text);
     box-sizing: border-box;
     overflow: hidden;
 }
@@ -179,12 +173,16 @@ body[data-layout="bottom"] #strip-bottom {
     border-color: var(--shell-green);
     color: #fff;
 }
-.acct-chip.attention:not(.active) {
+
+/* Idle alert: a background account's chip, card or rail button pulses its border. */
+.acct-chip.attention:not(.active),
+.acct-card.attention:not(.active),
+.acct-rail-btn.attention:not(.active) {
     animation: acct-flash 1s ease-in-out infinite alternate;
 }
 @keyframes acct-flash {
     from { border-color: var(--shell-border); }
-    to   { border-color: var(--shell-attention, #f9f449); }
+    to   { border-color: var(--shell-attention); }
 }
 
 .acct-select {
@@ -209,7 +207,7 @@ body[data-layout="bottom"] #strip-bottom {
     height: 18px;
     border-radius: 5px;
     background: #2f333b;
-    color: #c8ccd2;
+    color: var(--shell-text);
     font-size: 11px;
     font-weight: 700;
     display: flex;
@@ -272,7 +270,7 @@ body[data-layout="bottom"] #strip-bottom {
     flex: 0 0 auto;
     width: 28px;
     height: 28px;
-    border: 1px dashed #3a3f48;
+    border: 1px dashed var(--shell-dashed);
     border-radius: 6px;
     background: transparent;
     color: var(--shell-muted);
@@ -329,7 +327,7 @@ body.collapsed .acct-dock {
     font-weight: 600;
     letter-spacing: 0.04em;
     text-transform: uppercase;
-    color: #c8ccd2;
+    color: var(--shell-text);
 }
 .acct-dock-title {
     display: flex;
@@ -350,7 +348,7 @@ body.collapsed .acct-dock {
     border-radius: 6px;
     border: 1px solid var(--shell-border);
     background: var(--shell-chip-bg);
-    color: #c8ccd2;
+    color: var(--shell-text);
     cursor: pointer;
     padding: 0;
     display: flex;
@@ -402,9 +400,6 @@ body.collapsed .acct-dock-list {
     border-color: var(--shell-green);
     box-shadow: 0 0 0 2px rgba(0, 222, 122, 0.25);
 }
-.acct-card.attention:not(.active) {
-    animation: acct-flash 1s ease-in-out infinite alternate;
-}
 .acct-card .acct-select {
     flex-direction: column;
     align-items: stretch;
@@ -414,6 +409,8 @@ body.collapsed .acct-dock-list {
 .acct-thumb {
     position: relative;
     width: 100%;
+    /* 2:1 of the card interior: 232px dock − 2×10px list padding − 2×2px card border = 208px wide.
+       Main resizes captures to 240px wide, so a thumbnail is never upscaled. */
     height: 104px;
     background: #0e1410;
     display: flex;
@@ -451,6 +448,11 @@ body.collapsed .acct-dock-list {
     color: var(--shell-muted);
     white-space: nowrap;
 }
+/* Idle label on dock cards */
+.acct-card.attention .acct-state {
+    color: var(--shell-attention);
+    font-weight: 700;
+}
 .acct-card .acct-close {
     position: absolute;
     top: 4px;
@@ -459,7 +461,7 @@ body.collapsed .acct-dock-list {
     height: 20px;
     border-radius: 4px;
     background: rgba(0, 0, 0, 0.55);
-    color: #c8ccd2;
+    color: var(--shell-text);
 }
 
 .acct-rail-btn {
@@ -479,9 +481,6 @@ body.collapsed .acct-dock-list {
 .acct-rail-btn.active {
     border-color: var(--shell-green);
 }
-.acct-rail-btn.attention:not(.active) {
-    animation: acct-flash 1s ease-in-out infinite alternate;
-}
 .acct-rail-btn .acct-num {
     width: 22px;
     height: 22px;
@@ -497,10 +496,8 @@ body.collapsed .acct-dock-list {
 .acct-dock .acct-add {
     height: 40px;
     width: 100%;
-    border: 1px dashed #3a3f48;
     border-radius: 8px;
     font-size: 12px;
-    gap: 6px;
 }
 body.collapsed .acct-dock .acct-add {
     width: 40px;
@@ -518,10 +515,4 @@ body.collapsed .acct-dock .acct-add {
 }
 body.collapsed .acct-dock-footer {
     display: none;
-}
-
-/* Idle label on dock cards */
-.acct-card.attention .acct-state {
-    color: var(--shell-attention, #f9f449);
-    font-weight: 700;
 }

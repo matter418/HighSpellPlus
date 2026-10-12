@@ -70,7 +70,8 @@ Settings page styles, aligned with index.css and console.css theme tokens
   font-size: 12px;
 }
 
-.setting-input {
+.setting-input,
+.setting-color-hex {
   background: var(--theme-background-soft);
   color: var(--theme-text-primary);
   border: 1px solid var(--theme-border);
@@ -86,7 +87,8 @@ Settings page styles, aligned with index.css and console.css theme tokens
   width: clamp(220px, 60%, 520px);
 }
 
-.setting-input:focus {
+.setting-input:focus,
+.setting-color-hex:focus {
   outline: none;
   border-color: var(--theme-accent);
   box-shadow: 0 0 0 2px var(--theme-accent-transparent-20);
@@ -105,12 +107,6 @@ Settings page styles, aligned with index.css and console.css theme tokens
   border: 1px solid var(--theme-border);
   background: var(--theme-background-soft);
   color: var(--theme-text-secondary);
-}
-
-.setting-badge.ok {
-  background: var(--theme-success-transparent-30);
-  border-color: var(--theme-success);
-  color: var(--theme-text-primary);
 }
 
 .setting-badge.bad {
@@ -327,19 +323,8 @@ Settings page styles, aligned with index.css and console.css theme tokens
   cursor: pointer;
 }
 
+/* Shares .setting-input's box and focus ring (grouped above); only the width and case differ. */
 .setting-color-hex {
   width: 90px;
-  background: var(--theme-background-soft);
-  color: var(--theme-text-primary);
-  border: 1px solid var(--theme-border);
-  border-radius: 6px;
-  padding: 8px 10px;
-  font-family: 'Inter', sans-serif;
-  font-size: 13px;
   text-transform: lowercase;
-}
-
-.setting-color-hex:focus {
-  outline: none;
-  border-color: var(--theme-accent);
 }

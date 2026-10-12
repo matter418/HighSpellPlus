@@ -15,13 +15,14 @@
 
 import { app, BrowserWindow, ipcMain } from 'electron';
 import path from 'path';
+import type { ConsoleMessage } from '../../modules/gameWebContents';
 
 // The console window used to be created (hidden) at startup, which costs a whole renderer
 // process for the lifetime of the app and makes every console.* call from the game do IPC +
 // DOM work in a window nobody is looking at. It is now created on first "show-console", and
 // messages logged before that are kept in a small ring buffer so the window is populated on open.
 const BUFFER_LIMIT = 300;
-const buffer: any[] = [];
+const buffer: ConsoleMessage[] = [];
 let consoleWindow: BrowserWindow | null = null;
 
 function buildConsoleWindow(): BrowserWindow {
@@ -48,6 +49,8 @@ function buildConsoleWindow(): BrowserWindow {
     win.webContents.once('did-finish-load', () => {
         for (const msg of buffer) win.webContents.send('add-console-message', msg);
         buffer.length = 0;
+        // Shown here so the replayed messages are visible on first paint; the page's later
+        // 'ui-ready' show (windowEventManagement) is then a no-op.
         win.show();
     });
     win.on('closed', () => {
@@ -73,7 +76,10 @@ export function registerConsoleIPC() {
         consoleWindow.show();
     });
 
-    ipcMain.on('add-console-message', (data) => {
+    // Emitted in-process via ipcMain.emit from gameWebContents.ts, not sent by a renderer, so
+    // the first argument is the payload rather than an IpcMainEvent.
+    ipcMain.on('add-console-message', (payload) => {
+        const data = payload as unknown as ConsoleMessage;
         if (consoleWindow && !consoleWindow.isDestroyed()) {
             consoleWindow.webContents.send('add-console-message', data);
         } else {

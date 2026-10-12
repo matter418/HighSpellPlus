@@ -14,6 +14,8 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 /* Styles for a game page hosted inside the multi-account shell. */
 
+/* Overridden at runtime by idleWatch.js from the Idle Alert Color setting; this fallback must
+   match that setting's default in src/preload/settings.ts (it also mirrors --theme-accent). */
 :root {
     --hsplus-idle-color: #f9f449;
 }
@@ -59,7 +61,7 @@ body.hsplus-idle #hs-screen-mask::after {
     position: absolute;
     inset: 0;
     pointer-events: none;
-    z-index: 2147483000;
+    z-index: 2147483000; /* above everything the game draws */
     background: var(--hsplus-idle-color);
     animation: hsplus-idle-pulse 1.2s ease-in-out infinite alternate;
 }

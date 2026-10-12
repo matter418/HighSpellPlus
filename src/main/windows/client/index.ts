@@ -13,13 +13,14 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-import { app, BrowserWindow, ipcMain, shell, session } from 'electron';
+import { app, BrowserWindow, session } from 'electron';
 import path from 'path';
 import { format } from 'url';
 
 import './modules/userPasswordManagement'; // Import user password management module
 import './modules/windowEventManagement'; // Import window event management module
 import { createShellWindow, isMultiAccountEnabled } from '../shell';
+import { wireGameWebContents } from '../../modules/gameWebContents';
 
 app.commandLine.appendSwitch('disable-background-timer-throttling');
 app.commandLine.appendSwitch('disable-renderer-backgrounding');
@@ -77,51 +78,11 @@ export async function createClientWindow() {
         mainWindow.loadURL(fileUrl);
     }
 
-    // Open Links in External Browser
-    mainWindow.webContents.setWindowOpenHandler(({ url }) => {
-        shell.openExternal(url);
-        return { action: 'deny' };
-    });
-
-    // Allow pressing F12 to open dev tools
-    mainWindow.webContents.on('before-input-event', (event, input) => {
-        if (input.key === 'F12' && input.type === 'keyDown') {
-            event.preventDefault();
-            mainWindow.webContents.toggleDevTools();
-        }
-    });
-
-    // Enable Zooming Page In and Out
-    mainWindow.webContents.on('zoom-changed', (event, zoomDirection) => {
-        if (zoomDirection === 'in') {
-            // Increase zoom factor by 0.1 and dispatch a resize event to adjust the layout
-            mainWindow.webContents.setZoomLevel(
-                mainWindow.webContents.getZoomLevel() + 0.1
-            );
-        } else if (zoomDirection === 'out') {
-            // Decrease zoom factor by 0.1 and dispatch a resize event to adjust the layout
-            mainWindow.webContents.setZoomLevel(
-                mainWindow.webContents.getZoomLevel() - 0.1
-            );
-        }
-    });
-
-    mainWindow.webContents.on('console-message', (event) => {
-        ipcMain.emit('add-console-message', {
-            level: event.level,
-            text: event.message,
-            lineNumber: event.lineNumber,
-            source: event.sourceId
-        });
-    });
+    // External links, F12, Ctrl+wheel zoom, console forwarding, dev user agent.
+    wireGameWebContents(mainWindow.webContents);
 
     // In development, modify requests to High Spell servers
     if (!app.isPackaged) {
-        // Set user agent and origin for High Spell compatibility
-        mainWindow.webContents.setUserAgent(
-            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-        );
-
         mainWindow.webContents.session.webRequest.onBeforeSendHeaders(
             (details, callback) => {
                 if (details.url.includes('highspell.com')) {

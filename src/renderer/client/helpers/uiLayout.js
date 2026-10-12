@@ -19,8 +19,11 @@
 //   - double-click a panel to reset it.
 // Panels are the game's own absolutely positioned HUD containers; we only ever add a CSS
 // transform, so the game keeps laying them out as usual and hit-testing follows the
-// transform. The layout is per client (stored by the main process) and every change is
-// pushed live to all windows and multi-account views.
+// transform. The main process stores one shared layout plus one per character; the
+// "Shared Interface Layout" setting picks which one this client edits (see scope()), and every
+// change is pushed live to the other windows and multi-account views.
+
+import { accountNameFromTitle } from './titlebarHelpers.js';
 
 const PANELS = [
     // key, selector, anchor corner (the corner that stays put while scaling: where the game pins
@@ -43,10 +46,13 @@ const MIN_SCALE = 0.5;
 const MAX_SCALE = 3;
 const MODE_CLASS = 'hsplus-layout-mode';
 const HANDLE_CLASS = 'hsplus-layout-handle';
+const FRAME_CLASS = 'hsplus-layout-frame';
 const OVERLAY_ID = 'hsplus-layout-overlay';
 const CORNERS = ['nw', 'ne', 'sw', 'se'];
+const IDENTITY = Object.freeze({ dx: 0, dy: 0, scale: 1 });
 
 let store = { shared: {}, accounts: {} }; // from the main process
+let pendingStore = null;   // broadcast that arrived mid-drag; applied when the drag ends
 let sharedLayout = true;   // setting "Shared Interface Layout"
 let enabled = true;
 let modifier = 'Alt';      // 'Alt' | 'Control' | 'Shift'
@@ -74,10 +80,9 @@ async function loadSettings() {
 
 // ---- which layout applies: the shared one, or this character's ------------------------------
 
-/** Logged-in character name, from the title userHelper sets ("Highspell+ - <name>"); '' at the login screen. */
+/** Logged-in character name, from the title userHelper sets; '' at the login screen. */
 function accountName() {
-    const m = /^Highspell\+\s*-\s*(.+)$/.exec(document.title || '');
-    return m ? m[1].trim() : '';
+    return accountNameFromTitle(document.title);
 }
 
 /** 'shared', or the character name when per-account layouts are on (shared until logged in). */
@@ -87,13 +92,19 @@ function scope() {
 }
 
 /** The panel map being viewed/edited right now (created on demand for a new character). */
-function L() {
-    const sc = scope();
-    if (sc === 'shared') return store.shared;
-    if (!store.accounts[sc]) store.accounts[sc] = {};
-    return store.accounts[sc];
+function activeLayout() {
+    const scopeKey = scope();
+    if (scopeKey === 'shared') return store.shared;
+    if (!store.accounts[scopeKey]) store.accounts[scopeKey] = {};
+    return store.accounts[scopeKey];
 }
 
+/** A store as sent by main, or an empty one if the payload is missing/legacy-shaped. */
+function normalizeStore(s) {
+    return s && s.shared ? s : { shared: {}, accounts: {} };
+}
+
+/** Whether the configured modifier key is down in this mouse/keyboard event. */
 function modifierHeld(e) {
     return modifier === 'Alt' ? e.altKey : modifier === 'Control' ? e.ctrlKey : e.shiftKey;
 }
@@ -135,14 +146,14 @@ function naturalAnchor(p, el) {
 /** Where a natural-space point P of panel `p` currently is on screen, given its layout. */
 function mapPoint(p, el, pt, l) {
     const a = naturalAnchor(p, el);
-    const t = l || { dx: 0, dy: 0, scale: 1 };
+    const t = l || IDENTITY;
     return { x: a.x + t.dx + t.scale * (pt.x - a.x), y: a.y + t.dy + t.scale * (pt.y - a.y) };
 }
 
 /** Inverse of mapPoint: a screen point back into the panel's natural space. */
 function unmapPoint(p, el, pt, l) {
     const a = naturalAnchor(p, el);
-    const t = l || { dx: 0, dy: 0, scale: 1 };
+    const t = l || IDENTITY;
     return { x: a.x + (pt.x - a.x - t.dx) / t.scale, y: a.y + (pt.y - a.y - t.dy) / t.scale };
 }
 
@@ -181,13 +192,12 @@ function visibleRect(c, el, clips) {
  * Descendants hidden by an overflow-clipping ancestor (the minimap's map tiles) do not count.
  */
 function naturalBounds(p, el) {
-    const l = L()[p.key];
+    const l = activeLayout()[p.key];
     let box = naturalBox(el);
     let { left, top, right, bottom } = box;
     const clips = new Map();
     for (const c of el.querySelectorAll('*')) {
         if (!(c instanceof HTMLElement) || c.offsetWidth === 0 || c.offsetHeight === 0) continue;
-        if (c.classList.contains(HANDLE_CLASS)) continue;
         const cs = getComputedStyle(c);
         if (cs.visibility === 'hidden' || cs.opacity === '0') continue;
         const r = visibleRect(c, el, clips);
@@ -203,7 +213,7 @@ function naturalBounds(p, el) {
 /** Screen-space box of the panel's visible bounds under its current transform. */
 function screenBounds(p, el) {
     const nat = naturalBounds(p, el);
-    const l = L()[p.key];
+    const l = activeLayout()[p.key];
     const tl = mapPoint(p, el, { x: nat.left, y: nat.top }, l);
     const br = mapPoint(p, el, { x: nat.right, y: nat.bottom }, l);
     return { left: tl.x, top: tl.y, right: br.x, bottom: br.y, width: br.x - tl.x, height: br.y - tl.y };
@@ -218,7 +228,7 @@ function containerScale(el) {
     let scale = 1;
     for (const q of PANELS) {
         const qel = panelEl(q);
-        if (qel && qel !== el && qel.contains(el)) scale *= L()[q.key]?.scale || 1;
+        if (qel && qel !== el && qel.contains(el)) scale *= activeLayout()[q.key]?.scale || 1;
     }
     return scale;
 }
@@ -226,7 +236,7 @@ function containerScale(el) {
 function applyPanel(p) {
     const el = panelEl(p);
     if (!el) return;
-    const l = L()[p.key];
+    const l = activeLayout()[p.key];
     el.style.transformOrigin = p.anchor;
     el.style.transform = transformFor(l);
     el.dataset.hsplusPanel = p.key;
@@ -260,7 +270,7 @@ function applyAll() {
 }
 
 function persist() {
-    window.uiLayout.set(scope(), L());
+    window.uiLayout.set(scope(), activeLayout());
 }
 
 // ---- edit mode (modifier held): outlines + corner handles ---------------------------------
@@ -283,9 +293,8 @@ function ensureHandles(p) {
     const o = overlay();
     if (o.querySelector(`[data-panel="${p.key}"]`)) return;
     const frame = document.createElement('div');
-    frame.className = 'hsplus-layout-frame';
+    frame.className = FRAME_CLASS;
     frame.dataset.panel = p.key;
-    frame.dataset.frame = '1';
     o.appendChild(frame);
     for (const corner of CORNERS) {
         const h = document.createElement('div');
@@ -297,29 +306,45 @@ function ensureHandles(p) {
     }
 }
 
+/** The overlay's frame + 4 handles for panel `p`. */
+function handleItems(p) {
+    const o = document.getElementById(OVERLAY_ID);
+    return o ? o.querySelectorAll(`[data-panel="${p.key}"]`) : [];
+}
+
+/** Lay out one panel's frame and corner handles over its current screen bounds. */
+function positionPanelHandles(p, el, items) {
+    const r = screenBounds(p, el);
+    const visible = r.width > 0 && r.height > 0 && el.offsetParent !== null;
+    for (const h of items) {
+        h.style.display = visible ? 'block' : 'none';
+        if (h.classList.contains(FRAME_CLASS)) {
+            h.style.left = `${r.left}px`;
+            h.style.top = `${r.top}px`;
+            h.style.width = `${r.width}px`;
+            h.style.height = `${r.height}px`;
+            h.classList.toggle('dragging', !!(drag && drag.p === p));
+            continue;
+        }
+        const c = h.dataset.corner;
+        h.style.left = `${c.endsWith('w') ? r.left : r.right}px`;
+        h.style.top = `${c.startsWith('n') ? r.top : r.bottom}px`;
+    }
+}
+
 function positionHandles() {
     const o = document.getElementById(OVERLAY_ID);
     if (!o || !modeActive) return;
     for (const p of PANELS) {
-        const el = panelEl(p);
         const items = o.querySelectorAll(`[data-panel="${p.key}"]`);
-        if (!el || !items.length) continue;
-        const r = screenBounds(p, el);
-        const visible = r.width > 0 && r.height > 0 && el.offsetParent !== null;
-        for (const h of items) {
-            h.style.display = visible ? 'block' : 'none';
-            if (h.dataset.frame) {
-                h.style.left = `${r.left}px`;
-                h.style.top = `${r.top}px`;
-                h.style.width = `${r.width}px`;
-                h.style.height = `${r.height}px`;
-                h.classList.toggle('dragging', !!(drag && drag.p === p));
-                continue;
-            }
-            const c = h.dataset.corner;
-            h.style.left = `${c.endsWith('w') ? r.left : r.right}px`;
-            h.style.top = `${c.startsWith('n') ? r.top : r.bottom}px`;
+        if (!items.length) continue;
+        const el = panelEl(p);
+        if (!el) {
+            // Panel gone (closed/re-created by the game): don't leave its frame frozen on screen.
+            for (const h of items) h.style.display = 'none';
+            continue;
         }
+        positionPanelHandles(p, el, items);
     }
 }
 
@@ -373,7 +398,7 @@ function onPointerDown(e) {
     e.preventDefault();
     e.stopImmediatePropagation(); // the game must not see this as a click/walk/use
 
-    const current = L()[p.key] || { dx: 0, dy: 0, scale: 1 };
+    const current = activeLayout()[p.key] || IDENTITY;
     const ps = containerScale(el); // >1 when this panel sits inside a scaled-up panel
 
     if (handle) {
@@ -388,7 +413,7 @@ function onPointerDown(e) {
         // Where that corner is on screen right now, computed (not measured, see naturalBox).
         const pinned = mapPoint(p, el, o, current);
         drag = {
-            kind: 'scale', p, el,
+            kind: 'scale', p, el, ps,
             baseW: nat.width, baseH: nat.height,
             pinned,
             // Pinned corner relative to the pivot in the panel's own px (screen px / parent
@@ -399,7 +424,6 @@ function onPointerDown(e) {
     } else {
         drag = { kind: 'move', p, el, x0: e.clientX, y0: e.clientY, ps, start: { ...current } };
     }
-    el.classList.add('hsplus-layout-dragging');
     window.addEventListener('pointermove', onPointerMove, true);
     window.addEventListener('pointerup', onPointerUp, true);
     window.addEventListener('pointercancel', onPointerUp, true);
@@ -411,43 +435,67 @@ function onPointerMove(e) {
     e.stopImmediatePropagation();
     const { p, start } = drag;
     if (drag.kind === 'move') {
-        L()[p.key] = {
+        activeLayout()[p.key] = {
             ...start,
             dx: start.dx + (e.clientX - drag.x0) / drag.ps,
             dy: start.dy + (e.clientY - drag.y0) / drag.ps,
         };
     } else {
         // New size = distance from the pinned corner to the pointer; keep the aspect ratio by
-        // taking whichever axis the user stretched further.
+        // taking whichever axis the user stretched further. baseW/baseH are natural px, the
+        // pointer distance is screen px, so a parent panel's scale has to come out first.
         const w = Math.abs(e.clientX - drag.pinned.x);
         const h = Math.abs(e.clientY - drag.pinned.y);
-        const raw = Math.max(w / drag.baseW, h / drag.baseH);
+        const raw = Math.max(w / (drag.baseW * drag.ps), h / (drag.baseH * drag.ps));
         const scale = Math.min(MAX_SCALE, Math.max(MIN_SCALE, Number.isFinite(raw) ? raw : start.scale));
         // Opposite corner on screen = anchor + T + scale * lever; solve T so it stays put.
         const ds = start.scale - scale;
-        L()[p.key] = {
+        activeLayout()[p.key] = {
             dx: start.dx + ds * drag.lever.x,
             dy: start.dy + ds * drag.lever.y,
             scale,
         };
     }
     applyPanel(p);
-    positionHandles();
+    // Only the dragged panel moved; measuring all eight (chat has hundreds of nodes) per
+    // pointermove is what made dragging stutter.
+    if (modeActive) positionPanelHandles(p, drag.el, handleItems(p));
+}
+
+function sameLayout(a, b) {
+    return a.dx === b.dx && a.dy === b.dy && a.scale === b.scale;
+}
+
+/** Finish the active gesture: from pointerup/cancel, or window blur mid-drag. */
+function endDrag() {
+    if (!drag) return;
+    const finished = drag;
+    drag = null;
+    window.removeEventListener('pointermove', onPointerMove, true);
+    window.removeEventListener('pointerup', onPointerUp, true);
+    window.removeEventListener('pointercancel', onPointerUp, true);
+
+    const key = finished.p.key;
+    const edited = activeLayout()[key];
+    if (pendingStore) {
+        // Another window wrote while we were dragging: take its store, keep our panel's edit.
+        store = pendingStore;
+        pendingStore = null;
+        if (edited) activeLayout()[key] = edited;
+        else delete activeLayout()[key];
+        applyAll();
+    } else {
+        positionHandles();
+    }
+    // A modifier+double-click fires two zero-delta moves before the reset; nothing to save.
+    if (!sameLayout(edited || IDENTITY, finished.start)) persist();
 }
 
 function onPointerUp(e) {
     if (!drag) return;
     e.preventDefault();
     e.stopImmediatePropagation();
-    drag.el.classList.remove('hsplus-layout-dragging');
-    const finished = drag;
-    drag = null;
-    console.log(`[Highspell+ Layout] ${finished.kind} ${finished.p.key} -> ${JSON.stringify(L()[finished.p.key] || null)}`);
-    if (finished.p.key === 'minimap' || finished.p.key === 'compass') dumpStructure(`after ${finished.kind} ${finished.p.key}`);
-    window.removeEventListener('pointermove', onPointerMove, true);
-    window.removeEventListener('pointerup', onPointerUp, true);
-    window.removeEventListener('pointercancel', onPointerUp, true);
-    persist();
+    endDrag();
 }
 
 function onDoubleClick(e) {
@@ -456,7 +504,7 @@ function onDoubleClick(e) {
     if (!hit) return;
     e.preventDefault();
     e.stopImmediatePropagation();
-    delete L()[hit.p.key];
+    delete activeLayout()[hit.p.key];
     applyPanel(hit.p);
     positionHandles();
     persist();
@@ -471,54 +519,20 @@ function swallowIfEditing(e) {
     }
 }
 
-function onKeyDown(e) {
-    if (e.key === modifier) setMode(true);
+/** Typing into chat or a text box: a Shift (or Alt) press there is text entry, not edit mode. */
+function isTextEntry(target) {
+    return target instanceof Element &&
+        (target.matches('input, textarea') || target.isContentEditable);
 }
+
+function onKeyDown(e) {
+    if (e.key === modifier && !isTextEntry(e.target)) setMode(true);
+}
+// keyup only ever turns the mode OFF, so it is honoured everywhere: focus may have moved into
+// a text box between the press and the release, and the mode must not stay stuck on.
 function onKeyUp(e) {
     if (e.key === modifier) setMode(false);
 }
-
-// ---- diagnostics ---------------------------------------------------------------------------------
-// Logged through console (which electron-log mirrors into main.log) so the real HUD structure can
-// be read from the log file without a debugger: parent chains, inline styles and computed
-// positioning of every panel and follower, plus the numbers behind each drag.
-
-const DEBUG_SELECTORS = ['#hs-minimap-container', '#hs-toggle-minimap-button', '#hs-compass-button', '#hs-logout-button'];
-
-function describe(el) {
-    if (!el) return null;
-    const cs = getComputedStyle(el);
-    const chain = [];
-    for (let n = el.parentElement; n && chain.length < 6; n = n.parentElement) {
-        chain.push(`${n.tagName.toLowerCase()}${n.id ? '#' + n.id : ''}${n.className && typeof n.className === 'string' ? '.' + n.className.trim().split(/\s+/).join('.') : ''}`);
-    }
-    const r = el.getBoundingClientRect();
-    return {
-        id: el.id,
-        parents: chain,
-        inlineStyle: el.getAttribute('style'),
-        computed: {
-            position: cs.position, top: cs.top, left: cs.left, right: cs.right, bottom: cs.bottom,
-            width: cs.width, height: cs.height, transform: cs.transform, transformOrigin: cs.transformOrigin,
-            transition: cs.transition, margin: cs.margin,
-        },
-        rect: { x: Math.round(r.left), y: Math.round(r.top), w: Math.round(r.width), h: Math.round(r.height) },
-    };
-}
-
-function dumpStructure(reason) {
-    if (localStorage.getItem('HSPLUS_LAYOUT_DEBUG') !== '1') return;
-    try {
-        const out = {};
-        for (const sel of DEBUG_SELECTORS) out[sel] = describe(document.querySelector(sel));
-        const entry = { reason, scope: scope(), layout: L(), elements: out };
-        console.log(`[Highspell+ Layout] ${reason} ${JSON.stringify(out)}`);
-        window.uiLayout.debug?.(entry);
-    } catch (e) {
-        console.log('[Highspell+ Layout] dump failed', String(e));
-    }
-}
-window.__hsplusLayoutDump = dumpStructure;
 
 // ---- boot --------------------------------------------------------------------------------------
 
@@ -529,46 +543,62 @@ export function initUiLayout() {
     window.electron.ipcRenderer.on('settings:changed', () => { void loadSettings(); });
 
     window.uiLayout.get().then(saved => {
-        store = saved && saved.shared ? saved : { shared: {}, accounts: {} };
+        store = normalizeStore(saved);
         applyAll();
     });
     window.uiLayout.onChanged(next => {
-        if (drag) return; // we're the one editing; our own write comes back later anyway
-        store = next && next.shared ? next : { shared: {}, accounts: {} };
+        // Main broadcasts to every window EXCEPT the writer, so this is always someone else's
+        // edit. Mid-drag it would clobber the panel being dragged; hold it until the drag ends.
+        if (drag) {
+            pendingStore = normalizeStore(next);
+            return;
+        }
+        store = normalizeStore(next);
         applyAll();
     });
 
     // Per-character layouts switch when the login name changes (title set by userHelper).
     let lastScope = scope();
     new MutationObserver(() => {
-        const sc = scope();
-        if (sc !== lastScope) {
-            lastScope = sc;
+        const scopeKey = scope();
+        if (scopeKey !== lastScope) {
+            lastScope = scopeKey;
             applyAll();
         }
     }).observe(document.head, { childList: true, subtree: true, characterData: true });
 
-    // The HUD is built by the game after login and some panels are re-created when they are
-    // toggled; re-apply to any panel element we have not stamped yet.
-    const observer = new MutationObserver(() => {
+    // The HUD is built by the game after login and some panels (and followers) are re-created
+    // when they are toggled; re-apply to any element we have not stamped yet. Chat and nameplates
+    // mutate constantly, so the check runs at most once per frame.
+    let queued = false;
+    const checkPanels = () => {
+        queued = false;
         let fresh = false;
         for (const p of PANELS) {
             const el = panelEl(p);
-            if (el && el.dataset.hsplusPanel !== p.key) {
+            if (!el) continue;
+            const unstamped = el.dataset.hsplusPanel !== p.key ||
+                (p.followers || []).some(sel => {
+                    const f = document.querySelector(sel);
+                    return f && f.dataset.hsplusFollower !== p.key;
+                });
+            if (unstamped) {
                 applyPanel(p);
                 if (modeActive) ensureHandles(p);
                 fresh = true;
             }
         }
         if (fresh && modeActive) {
+            // The mask itself may have been re-created by the game along with the panel.
             const mask = document.querySelector('#hs-screen-mask');
             if (mask) mask.classList.add(MODE_CLASS);
             positionHandles();
         }
-        const mask = document.querySelector('#hs-screen-mask');
-        if (mask && !mask.dataset.hsplusDumped && document.querySelector('#hs-minimap-container')) {
-            mask.dataset.hsplusDumped = '1';
-            setTimeout(() => dumpStructure('HUD ready'), 1500);
+    };
+    const observer = new MutationObserver(() => {
+        if (!queued) {
+            queued = true;
+            requestAnimationFrame(checkPanels);
         }
     });
     window.addEventListener('resize', positionHandles);
@@ -580,5 +610,9 @@ export function initUiLayout() {
     window.addEventListener('contextmenu', swallowIfEditing, true);
     window.addEventListener('keydown', onKeyDown, true);
     window.addEventListener('keyup', onKeyUp, true);
-    window.addEventListener('blur', () => setMode(false));
+    // Alt+Tab away mid-drag: no pointerup ever comes, so finish the gesture here.
+    window.addEventListener('blur', () => {
+        endDrag();
+        setMode(false);
+    });
 }

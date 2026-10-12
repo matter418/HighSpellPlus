@@ -20,6 +20,8 @@
 // delay, the shell is told to flash this account's tab. Detection mirrors the Idle Alert
 // plugin tick-for-tick, so the two agree on when a character is AFK; the sound is off by
 // default to avoid doubling up with that plugin.
+// Needs `document.highlite.gameHooks`, which only exists once core (`new Highlite()`) has run,
+// so client.ts starts this watcher only when plugins are enabled.
 
 import { ActionState } from '@ryelite/core';
 import { playAlertSound } from '../../shared/alertSounds';
@@ -37,6 +39,8 @@ const IGNORED_STATES = [
     ActionState.TradingState,
 ];
 
+// Defaults here and in the fallbacks below must match the MultiAccount schema in
+// src/preload/settings.ts (12 s, 60 %, #f9f449).
 const settings = { enabled: true, delaySeconds: 12, sound: 'Off', volume: 60, color: '#f9f449' };
 
 async function loadSettings() {
@@ -51,7 +55,8 @@ async function loadSettings() {
         settings.enabled = enabled !== false;
         settings.delaySeconds = Math.max(1, Number(delay) || 12);
         settings.sound = typeof sound === 'string' ? sound : 'Off';
-        settings.volume = Number.isFinite(Number(volume)) ? Number(volume) : 60;
+        // Number(null) / Number('') is 0, which would mute the sound: only accept a real number.
+        settings.volume = typeof volume === 'number' && Number.isFinite(volume) ? volume : 60;
         settings.color = /^#[0-9a-fA-F]{6}$/.test(String(color)) ? String(color) : '#f9f449';
         document.documentElement.style.setProperty('--hsplus-idle-color', settings.color);
     } catch {
@@ -62,7 +67,7 @@ async function loadSettings() {
 // ---- watcher --------------------------------------------------------------------------------
 
 export function initIdleWatch() {
-    if (!window.account || !window.account.embedded) return;
+    if (!window.account?.embedded) return;
 
     void loadSettings();
     window.electron.ipcRenderer.on('settings:changed', () => {
@@ -100,6 +105,8 @@ export function initIdleWatch() {
                 return;
             }
 
+            // _mainPlayer/_currentState/_isMoving/_currentTarget are the game's own (stable) field
+            // names, checked against the live client; _mainPlayer is the `MainPlayer` of CLAUDE.md.
             const player = document.highlite?.gameHooks?.EntityManager?.Instance?._mainPlayer;
             if (!player) {
                 reset();
@@ -112,11 +119,6 @@ export function initIdleWatch() {
                 return;
             }
 
-            // Character is doing something again — alert is stale.
-            if (state !== ActionState.IdleState) {
-                clearAlert();
-            }
-
             // Manual movement is not an AFK action (plugin parity).
             if (player._isMoving && player._currentTarget == null && state === ActionState.IdleState) {
                 shouldTick = false;
@@ -125,7 +127,9 @@ export function initIdleWatch() {
             }
             shouldTick = true;
 
+            // Character is doing something again — alert is stale.
             if (state !== ActionState.IdleState) {
+                clearAlert();
                 lastActionState = state;
             }
 
@@ -155,7 +159,4 @@ export function initIdleWatch() {
             // Never let the watcher break anything else; try again next poll.
         }
     }, POLL_MS);
-
-    // Debug handle for the F12 console.
-    window.__hsplusIdleWatch = () => ({ lastActionState, idlePolls, shouldTick, alerting, settings: { ...settings } });
 }

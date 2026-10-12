@@ -19,9 +19,10 @@
 // Chromium stops producing compositor frames for a hidden view, so anything that re-arms
 // itself from inside requestAnimationFrame (the game loop, Babylon) would simply stop, the
 // socket would stop ponging and the server would drop the session a minute later. While
-// hidden, every rAF caller is served from a ~2 fps setTimeout pump instead. JS, timers and
-// the game socket stay fully alive; the game loop's accumulator TIMESTEP is 600 ms so
-// 500 ms frames lose nothing, and there is no render churn for views nobody is looking at.
+// hidden, every rAF caller is served from a slow setTimeout pump instead (15 fps by default,
+// 2–60 via the "Background Frame Rate" setting). JS, timers and the game socket stay fully
+// alive; the game loop's accumulator TIMESTEP is 600 ms so even 2 fps loses nothing, and
+// there is far less render churn for views nobody is looking at.
 //
 // The wrapper owns the id space and migrates pending callbacks between the real queue and
 // the pump on every state change so nothing is stranded in a queue that stopped ticking.
@@ -29,8 +30,9 @@
 const nativeRaf = window.requestAnimationFrame.bind(window);
 const nativeCaf = window.cancelAnimationFrame.bind(window);
 
-// Frame interval while hidden; configurable via the "Background Frame Rate" setting.
-let HIDDEN_FRAME_MS = 1000 / 15;
+// Frame interval while hidden; configurable via the "Background Frame Rate" setting. The 15
+// here and in setHiddenFrameRate must match that setting's default in src/preload/settings.ts.
+let hiddenFrameMs = 1000 / 15;
 
 let hidden = false;
 let nextId = 1;
@@ -45,7 +47,7 @@ function schedule(id, cb) {
             underlying: window.setTimeout(() => {
                 pending.delete(id);
                 cb(performance.now());
-            }, HIDDEN_FRAME_MS),
+            }, hiddenFrameMs),
         };
     }
     return {
@@ -63,14 +65,10 @@ function unschedule(p) {
     else nativeCaf(p.underlying);
 }
 
-export function isHidden() {
-    return hidden;
-}
-
 /** Frames per second to serve while hidden (2–60). Takes effect from the next frame. */
 export function setHiddenFrameRate(fps) {
-    const clamped = Math.min(60, Math.max(1, Number(fps) || 15));
-    HIDDEN_FRAME_MS = Math.round(1000 / clamped);
+    const clamped = Math.min(60, Math.max(2, Number(fps) || 15));
+    hiddenFrameMs = Math.round(1000 / clamped);
 }
 
 export function setHidden(h) {

@@ -211,3 +211,21 @@ body {
 #window-controls .window-control .iconify {
     font-size: 14px;
 }
+
+/* Title-bar warning indicator (client.html and shell.html): lit yellow on a console warning, red on an error. */
+#warningIndicator .warning-icon {
+    color: var(--theme-text-primary, #ffffff);
+}
+
+#warningIndicator .warning-icon.warning {
+    color: var(--theme-accent, #f9f449) !important;
+}
+
+#warningIndicator .warning-icon.error {
+    color: var(--theme-danger, #ef4444) !important;
+}
+
+#warningIndicator:hover .warning-icon {
+    transform: scale(1.1);
+    transition: transform 0.2s ease;
+}

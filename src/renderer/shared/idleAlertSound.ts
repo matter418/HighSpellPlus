@@ -1,4 +1,6 @@
-// Generated from static/sounds/idle_alert.mp3 - do not edit by hand.
+// Generated from static/sounds/idle_alert.mp3 - do not edit by hand. Regenerate (from the repo
+// root; keeps this header, rewrites the constant) with:
+//   node -e "const fs=require('fs'),p='src/renderer/shared/idleAlertSound.ts',q=String.fromCharCode(39),nl=String.fromCharCode(10);const head=fs.readFileSync(p,'utf8').split(nl+'export const')[0];const b64=fs.readFileSync('static/sounds/idle_alert.mp3').toString('base64');fs.writeFileSync(p,head+nl+'export const IDLE_ALERT_MP3_DATA_URL ='+nl+'    '+q+'data:audio/mpeg;base64,'+b64+q+';'+nl)"
 // Source: the Idle Alert plugin for HighLite (https://github.com/CodyBrunson/Idle-Alert,
 // resources/sounds/idle_alert.mp3), GPL-3.0, the same license as this client. Embedded as a
 // data URL so the client renderer and plugin bundles can play it without any asset loader.

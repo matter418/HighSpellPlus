@@ -525,12 +525,23 @@ function isTextEntry(target) {
         (target.matches('input, textarea') || target.isContentEditable);
 }
 
+// A lone Alt is Windows' menu-bar accelerator. If the page does not claim the key events,
+// Chromium falls back to that: the first Alt+click is swallowed (no pointerdown, no keyup
+// reaches the page) and the next click arrives as a window blur, so the user had to tap
+// Alt once before an Alt+drag would take. preventDefault marks Alt as handled; Shift and
+// Control have no such role and are left alone.
+function claimAlt(e) {
+    if (e.key === 'Alt' && modifier === 'Alt') e.preventDefault();
+}
+
 function onKeyDown(e) {
+    claimAlt(e);
     if (e.key === modifier && !isTextEntry(e.target)) setMode(true);
 }
 // keyup only ever turns the mode OFF, so it is honoured everywhere: focus may have moved into
 // a text box between the press and the release, and the mode must not stay stuck on.
 function onKeyUp(e) {
+    claimAlt(e);
     if (e.key === modifier) setMode(false);
 }
 

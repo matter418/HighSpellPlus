@@ -82,8 +82,9 @@ export function initIdleWatch() {
         document.body.classList.remove('hsplus-idle');
     };
 
-    // Looking at the account (clicking into its view) answers the alert, like switching tabs.
-    window.addEventListener('focus', clearAlert);
+    // Like the Idle Alert plugin: the tint stays until you click anywhere in this view or the
+    // character acts again. Clicking also focuses the view, which clears the tab flash in main.
+    window.addEventListener('pointerdown', () => document.body.classList.remove('hsplus-idle'), true);
 
     const reset = () => {
         lastActionState = ActionState.IdleState;
@@ -144,8 +145,9 @@ export function initIdleWatch() {
                 playAlertSound(settings.sound, settings.volume);
                 window.account.notifyAttention('idle');
                 alerting = true;
-                // In-page cue (pulsing border): visible in the Multibox grid where no tab exists.
-                if (!document.hasFocus()) document.body.classList.add('hsplus-idle');
+                // In-page cue (full tint), shown even on the account you are looking at so an idle
+                // main window is obvious; dismissed by a click here or by the character acting.
+                document.body.classList.add('hsplus-idle');
                 lastActionState = ActionState.IdleState;
                 idlePolls = 0;
             }

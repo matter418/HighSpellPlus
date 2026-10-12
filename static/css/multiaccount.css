@@ -51,19 +51,20 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
     background: var(--theme-danger, #ef4444);
 }
 
-/* Idle cue: a pulsing inset border around the whole game view while the character is idle.
-   Drawn inside the page so it shows in the Multibox grid, where there is no tab to flash. */
+/* Idle cue: a translucent full-view tint in the idle color while the character is idle, like
+   the Idle Alert plugin's overlay. Drawn inside the page so it shows in the Multibox grid, where
+   there is no tab to flash. Never eats input. */
 body.hsplus-idle #hs-screen-mask::after {
     content: '';
     position: absolute;
     inset: 0;
     pointer-events: none;
     z-index: 2147483000;
-    box-shadow: inset 0 0 0 5px var(--hsplus-idle-color);
-    animation: hsplus-idle-pulse 1s ease-in-out infinite alternate;
+    background: var(--hsplus-idle-color);
+    animation: hsplus-idle-pulse 1.2s ease-in-out infinite alternate;
 }
 
 @keyframes hsplus-idle-pulse {
-    from { opacity: 0.25; }
-    to   { opacity: 1; }
+    from { opacity: 0.18; }
+    to   { opacity: 0.38; }
 }

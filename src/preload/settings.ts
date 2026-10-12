@@ -156,6 +156,12 @@ export class settingsSchema extends SettingsSchema {
                     default: true
                 } as Field,
                 {
+                    label: "Shared Interface Layout",
+                    type: SettingTypes.BOOLEAN,
+                    description: "On: one layout for every account. Off: each character keeps its own layout, keyed by the name it logs in with.",
+                    default: true
+                } as Field,
+                {
                     label: "Layout Modifier Key",
                     type: SettingTypes.DROPDOWN,
                     description: "Key to hold while moving or resizing panels.",
@@ -169,7 +175,7 @@ export class settingsSchema extends SettingsSchema {
                 {
                     label: "Reset Interface Layout",
                     type: SettingTypes.BUTTON,
-                    description: "Put every panel back where the game draws it, at its normal size, on all accounts.",
+                    description: "Put every panel back where the game draws it, at its normal size: the shared layout and every per-character layout.",
                     buttonText: "Reset layout",
                     action: "ui-layout:reset"
                 } as ButtonField

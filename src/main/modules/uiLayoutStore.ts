@@ -33,19 +33,37 @@ export interface PanelLayout {
 
 export type UiLayout = Record<string, PanelLayout>;
 
+/** `shared` is used when "Shared Interface Layout" is on; otherwise `accounts[<character name>]`. */
+export interface UiLayoutStore {
+    shared: UiLayout;
+    accounts: Record<string, UiLayout>;
+}
+
 const filePath = () => path.join(app.getPath('userData'), 'ui-layout.json');
 
-let layout: UiLayout | null = null;
+let store: UiLayoutStore | null = null;
 
-function load(): UiLayout {
-    if (layout) return layout;
+function load(): UiLayoutStore {
+    if (store) return store;
     try {
         const raw = JSON.parse(fs.readFileSync(filePath(), 'utf8'));
-        layout = sanitize(raw);
+        store = sanitizeStore(raw);
     } catch {
-        layout = {};
+        store = { shared: {}, accounts: {} };
     }
-    return layout;
+    return store;
+}
+
+function sanitizeStore(raw: any): UiLayoutStore {
+    if (raw && typeof raw === 'object' && ('shared' in raw || 'accounts' in raw)) {
+        const accounts: Record<string, UiLayout> = {};
+        for (const [name, l] of Object.entries(raw.accounts || {})) {
+            if (typeof name === 'string' && name.length > 0 && name.length <= 64) accounts[name] = sanitize(l);
+        }
+        return { shared: sanitize(raw.shared), accounts };
+    }
+    // Pre-2026-10-12 file: a flat panel map, which was the client-wide layout.
+    return { shared: sanitize(raw), accounts: {} };
 }
 
 function sanitize(raw: unknown): UiLayout {
@@ -60,8 +78,8 @@ function sanitize(raw: unknown): UiLayout {
     return out;
 }
 
-function save(next: UiLayout) {
-    layout = next;
+function save(next: UiLayoutStore) {
+    store = next;
     try {
         fs.writeFileSync(filePath(), JSON.stringify(next, null, 2), 'utf8');
     } catch (e) {
@@ -78,20 +96,27 @@ function broadcast(except?: Electron.WebContents) {
             if (wc) targets.push(wc);
         }
         for (const wc of targets) {
-            if (!wc.isDestroyed() && wc !== except) wc.send('ui-layout:changed', layout);
+            if (!wc.isDestroyed() && wc !== except) wc.send('ui-layout:changed', store);
         }
     }
 }
 
 export function registerUiLayoutIPC() {
     ipcMain.handle('ui-layout:get', () => load());
-    ipcMain.on('ui-layout:set', (event, next: unknown) => {
-        save(sanitize(next));
+    // scope: 'shared' or a character name; `next` is that scope's panel map.
+    ipcMain.on('ui-layout:set', (event, scope: unknown, next: unknown) => {
+        const current = load();
+        const clean = sanitize(next);
+        if (scope === 'shared' || typeof scope !== 'string' || !scope) {
+            save({ ...current, shared: clean });
+        } else {
+            save({ ...current, accounts: { ...current.accounts, [scope.slice(0, 64)]: clean } });
+        }
         broadcast(event.sender);
     });
-    // Settings window "Reset layout" button: everything back to the game's defaults, everywhere.
+    // Settings window "Reset layout" button: shared AND every per-account layout, everywhere.
     ipcMain.on('ui-layout:reset', () => {
-        save({});
+        save({ shared: {}, accounts: {} });
         broadcast();
     });
     // Diagnostics from uiLayout.js: appended to userData/ui-layout-debug.jsonl so the real HUD

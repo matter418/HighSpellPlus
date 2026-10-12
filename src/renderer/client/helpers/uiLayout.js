@@ -46,7 +46,8 @@ const HANDLE_CLASS = 'hsplus-layout-handle';
 const OVERLAY_ID = 'hsplus-layout-overlay';
 const CORNERS = ['nw', 'ne', 'sw', 'se'];
 
-let layout = {};           // key -> { dx, dy, scale }
+let store = { shared: {}, accounts: {} }; // from the main process
+let sharedLayout = true;   // setting "Shared Interface Layout"
 let enabled = true;
 let modifier = 'Alt';      // 'Alt' | 'Control' | 'Shift'
 let modeActive = false;
@@ -56,16 +57,41 @@ let drag = null;           // active drag/resize gesture
 
 async function loadSettings() {
     try {
-        const [on, mod] = await Promise.all([
+        const [on, mod, shared] = await Promise.all([
             window.settings.get('Interface', 'Movable Interface'),
             window.settings.get('Interface', 'Layout Modifier Key'),
+            window.settings.get('Interface', 'Shared Interface Layout'),
         ]);
         enabled = on !== false;
         modifier = ['Alt', 'Control', 'Shift'].includes(mod) ? mod : 'Alt';
+        sharedLayout = shared !== false;
         if (!enabled) setMode(false);
+        applyAll(); // the active scope may have changed
     } catch {
         // defaults
     }
+}
+
+// ---- which layout applies: the shared one, or this character's ------------------------------
+
+/** Logged-in character name, from the title userHelper sets ("Highspell+ - <name>"); '' at the login screen. */
+function accountName() {
+    const m = /^Highspell\+\s*-\s*(.+)$/.exec(document.title || '');
+    return m ? m[1].trim() : '';
+}
+
+/** 'shared', or the character name when per-account layouts are on (shared until logged in). */
+function scope() {
+    if (sharedLayout) return 'shared';
+    return accountName() || 'shared';
+}
+
+/** The panel map being viewed/edited right now (created on demand for a new character). */
+function L() {
+    const sc = scope();
+    if (sc === 'shared') return store.shared;
+    if (!store.accounts[sc]) store.accounts[sc] = {};
+    return store.accounts[sc];
 }
 
 function modifierHeld(e) {
@@ -113,6 +139,47 @@ function mapPoint(p, el, pt, l) {
     return { x: a.x + t.dx + t.scale * (pt.x - a.x), y: a.y + t.dy + t.scale * (pt.y - a.y) };
 }
 
+/** Inverse of mapPoint: a screen point back into the panel's natural space. */
+function unmapPoint(p, el, pt, l) {
+    const a = naturalAnchor(p, el);
+    const t = l || { dx: 0, dy: 0, scale: 1 };
+    return { x: a.x + (pt.x - a.x - t.dx) / t.scale, y: a.y + (pt.y - a.y - t.dy) / t.scale };
+}
+
+/**
+ * The panel's natural bounds as the user sees them: its own layout box UNITED with every visible
+ * descendant's box. Some containers (the inventory/skills window) are a near-empty flex box whose
+ * menus overflow it, so the element's own box would give a tiny outline and unreachable handles.
+ * Descendants inherit the panel's transform, so their screen rects are mapped back through it.
+ */
+function naturalBounds(p, el) {
+    const l = L()[p.key];
+    let box = naturalBox(el);
+    let { left, top, right, bottom } = box;
+    for (const c of el.querySelectorAll('*')) {
+        if (!(c instanceof HTMLElement) || c.offsetWidth === 0 || c.offsetHeight === 0) continue;
+        if (c.classList.contains(HANDLE_CLASS)) continue;
+        const cs = getComputedStyle(c);
+        if (cs.visibility === 'hidden' || cs.opacity === '0') continue;
+        const r = c.getBoundingClientRect();
+        if (r.width === 0 || r.height === 0) continue;
+        const p1 = unmapPoint(p, el, { x: r.left, y: r.top }, l);
+        const p2 = unmapPoint(p, el, { x: r.right, y: r.bottom }, l);
+        left = Math.min(left, p1.x); top = Math.min(top, p1.y);
+        right = Math.max(right, p2.x); bottom = Math.max(bottom, p2.y);
+    }
+    return { left, top, right, bottom, width: right - left, height: bottom - top };
+}
+
+/** Screen-space box of the panel's visible bounds under its current transform. */
+function screenBounds(p, el) {
+    const nat = naturalBounds(p, el);
+    const l = L()[p.key];
+    const tl = mapPoint(p, el, { x: nat.left, y: nat.top }, l);
+    const br = mapPoint(p, el, { x: nat.right, y: nat.bottom }, l);
+    return { left: tl.x, top: tl.y, right: br.x, bottom: br.y, width: br.x - tl.x, height: br.y - tl.y };
+}
+
 /**
  * Combined scale of every OTHER panel that contains `el` in the DOM (normally 1; the compass
  * or minimap toggle may live inside the minimap container). A nested element already inherits
@@ -122,7 +189,7 @@ function containerScale(el) {
     let scale = 1;
     for (const q of PANELS) {
         const qel = panelEl(q);
-        if (qel && qel !== el && qel.contains(el)) scale *= layout[q.key]?.scale || 1;
+        if (qel && qel !== el && qel.contains(el)) scale *= L()[q.key]?.scale || 1;
     }
     return scale;
 }
@@ -130,7 +197,7 @@ function containerScale(el) {
 function applyPanel(p) {
     const el = panelEl(p);
     if (!el) return;
-    const l = layout[p.key];
+    const l = L()[p.key];
     el.style.transformOrigin = p.anchor;
     el.style.transform = transformFor(l);
     el.dataset.hsplusPanel = p.key;
@@ -164,7 +231,7 @@ function applyAll() {
 }
 
 function persist() {
-    window.uiLayout.set(layout);
+    window.uiLayout.set(scope(), L());
 }
 
 // ---- edit mode (modifier held): outlines + corner handles ---------------------------------
@@ -186,6 +253,11 @@ function overlay() {
 function ensureHandles(p) {
     const o = overlay();
     if (o.querySelector(`[data-panel="${p.key}"]`)) return;
+    const frame = document.createElement('div');
+    frame.className = 'hsplus-layout-frame';
+    frame.dataset.panel = p.key;
+    frame.dataset.frame = '1';
+    o.appendChild(frame);
     for (const corner of CORNERS) {
         const h = document.createElement('div');
         h.className = `${HANDLE_CLASS} ${HANDLE_CLASS}--${corner}`;
@@ -201,12 +273,20 @@ function positionHandles() {
     if (!o || !modeActive) return;
     for (const p of PANELS) {
         const el = panelEl(p);
-        const handles = o.querySelectorAll(`[data-panel="${p.key}"]`);
-        if (!el || !handles.length) continue;
-        const r = el.getBoundingClientRect();
-        const visible = r.width > 0 && r.height > 0;
-        for (const h of handles) {
+        const items = o.querySelectorAll(`[data-panel="${p.key}"]`);
+        if (!el || !items.length) continue;
+        const r = screenBounds(p, el);
+        const visible = r.width > 0 && r.height > 0 && el.offsetParent !== null;
+        for (const h of items) {
             h.style.display = visible ? 'block' : 'none';
+            if (h.dataset.frame) {
+                h.style.left = `${r.left}px`;
+                h.style.top = `${r.top}px`;
+                h.style.width = `${r.width}px`;
+                h.style.height = `${r.height}px`;
+                h.classList.toggle('dragging', !!(drag && drag.p === p));
+                continue;
+            }
             const c = h.dataset.corner;
             h.style.left = `${c.endsWith('w') ? r.left : r.right}px`;
             h.style.top = `${c.startsWith('n') ? r.top : r.bottom}px`;
@@ -264,7 +344,7 @@ function onPointerDown(e) {
     e.preventDefault();
     e.stopImmediatePropagation(); // the game must not see this as a click/walk/use
 
-    const current = layout[p.key] || { dx: 0, dy: 0, scale: 1 };
+    const current = L()[p.key] || { dx: 0, dy: 0, scale: 1 };
     const ps = containerScale(el); // >1 when this panel sits inside a scaled-up panel
 
     if (handle) {
@@ -273,9 +353,9 @@ function onPointerDown(e) {
         // so as the scale changes we shift the translation to keep the opposite corner pinned.
         const c = handle.dataset.corner; // nw | ne | sw | se
         const opposite = `${c.startsWith('n') ? 'bottom' : 'top'} ${c.endsWith('w') ? 'right' : 'left'}`;
-        const nat = naturalBox(el);
-        const a = cornerPoint(nat, p.anchor);   // natural anchor (scale pivot)
-        const o = cornerPoint(nat, opposite);   // natural position of the pinned corner
+        const nat = naturalBounds(p, el);     // what the user sees, not the bare container
+        const a = naturalAnchor(p, el);         // scale pivot = the container's anchor corner
+        const o = cornerPoint(nat, opposite);   // natural position of the pinned (visible) corner
         // Where that corner is on screen right now, computed (not measured, see naturalBox).
         const pinned = mapPoint(p, el, o, current);
         drag = {
@@ -302,7 +382,7 @@ function onPointerMove(e) {
     e.stopImmediatePropagation();
     const { p, start } = drag;
     if (drag.kind === 'move') {
-        layout[p.key] = {
+        L()[p.key] = {
             ...start,
             dx: start.dx + (e.clientX - drag.x0) / drag.ps,
             dy: start.dy + (e.clientY - drag.y0) / drag.ps,
@@ -316,7 +396,7 @@ function onPointerMove(e) {
         const scale = Math.min(MAX_SCALE, Math.max(MIN_SCALE, Number.isFinite(raw) ? raw : start.scale));
         // Opposite corner on screen = anchor + T + scale * lever; solve T so it stays put.
         const ds = start.scale - scale;
-        layout[p.key] = {
+        L()[p.key] = {
             dx: start.dx + ds * drag.lever.x,
             dy: start.dy + ds * drag.lever.y,
             scale,
@@ -333,7 +413,7 @@ function onPointerUp(e) {
     drag.el.classList.remove('hsplus-layout-dragging');
     const finished = drag;
     drag = null;
-    console.log(`[Highspell+ Layout] ${finished.kind} ${finished.p.key} -> ${JSON.stringify(layout[finished.p.key] || null)}`);
+    console.log(`[Highspell+ Layout] ${finished.kind} ${finished.p.key} -> ${JSON.stringify(L()[finished.p.key] || null)}`);
     if (finished.p.key === 'minimap' || finished.p.key === 'compass') dumpStructure(`after ${finished.kind} ${finished.p.key}`);
     window.removeEventListener('pointermove', onPointerMove, true);
     window.removeEventListener('pointerup', onPointerUp, true);
@@ -347,7 +427,7 @@ function onDoubleClick(e) {
     if (!hit) return;
     e.preventDefault();
     e.stopImmediatePropagation();
-    delete layout[hit.p.key];
+    delete L()[hit.p.key];
     applyPanel(hit.p);
     positionHandles();
     persist();
@@ -398,10 +478,11 @@ function describe(el) {
 }
 
 function dumpStructure(reason) {
+    if (localStorage.getItem('HSPLUS_LAYOUT_DEBUG') !== '1') return;
     try {
         const out = {};
         for (const sel of DEBUG_SELECTORS) out[sel] = describe(document.querySelector(sel));
-        const entry = { reason, layout, elements: out };
+        const entry = { reason, scope: scope(), layout: L(), elements: out };
         console.log(`[Highspell+ Layout] ${reason} ${JSON.stringify(out)}`);
         window.uiLayout.debug?.(entry);
     } catch (e) {
@@ -419,14 +500,24 @@ export function initUiLayout() {
     window.electron.ipcRenderer.on('settings:changed', () => { void loadSettings(); });
 
     window.uiLayout.get().then(saved => {
-        layout = saved || {};
+        store = saved && saved.shared ? saved : { shared: {}, accounts: {} };
         applyAll();
     });
     window.uiLayout.onChanged(next => {
         if (drag) return; // we're the one editing; our own write comes back later anyway
-        layout = next || {};
+        store = next && next.shared ? next : { shared: {}, accounts: {} };
         applyAll();
     });
+
+    // Per-character layouts switch when the login name changes (title set by userHelper).
+    let lastScope = scope();
+    new MutationObserver(() => {
+        const sc = scope();
+        if (sc !== lastScope) {
+            lastScope = sc;
+            applyAll();
+        }
+    }).observe(document.head, { childList: true, subtree: true, characterData: true });
 
     // The HUD is built by the game after login and some panels are re-created when they are
     // toggled; re-apply to any panel element we have not stamped yet.

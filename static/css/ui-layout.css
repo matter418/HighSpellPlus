@@ -12,16 +12,23 @@ You should have received a copy of the GNU General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-/* Movable HUD edit mode (modifier key held): outlines and corner handles on each panel. */
+/* Movable HUD edit mode (modifier key held): outlines and corner handles on each panel.
+   Outlines are drawn in the overlay from each panel's VISIBLE bounds (see naturalBounds), not
+   with CSS outline on the element, because some containers are far smaller than their contents. */
 
 .hsplus-layout-mode [data-hsplus-panel] {
-    outline: 2px dashed var(--theme-accent, #f9f449);
-    outline-offset: 2px;
     cursor: move;
 }
 
-.hsplus-layout-mode [data-hsplus-panel].hsplus-layout-dragging {
-    outline-style: solid;
+.hsplus-layout-frame {
+    position: absolute;
+    box-sizing: border-box;
+    border: 2px dashed var(--theme-accent, #f9f449);
+    border-radius: 3px;
+    pointer-events: none;
+}
+.hsplus-layout-frame.dragging {
+    border-style: solid;
 }
 
 /* Followers ride along with their panel; a thinner outline shows they belong to it. */

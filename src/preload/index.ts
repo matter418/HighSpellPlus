@@ -54,8 +54,10 @@ const accountAPI = {
 // Per-client HUD layout (movable/resizable game panels); shared by every window and view.
 const uiLayoutAPI = {
     get: () => ipcRenderer.invoke('ui-layout:get'),
-    set: (layout: Record<string, { dx: number; dy: number; scale: number }>) => ipcRenderer.send('ui-layout:set', layout),
-    onChanged: (cb: (layout: Record<string, { dx: number; dy: number; scale: number }>) => void) => {
+    /** scope: 'shared' or a character name. */
+    set: (scope: string, layout: Record<string, { dx: number; dy: number; scale: number }>) =>
+        ipcRenderer.send('ui-layout:set', scope, layout),
+    onChanged: (cb: (store: unknown) => void) => {
         ipcRenderer.on('ui-layout:changed', (_e, l) => cb(l));
     },
     debug: (entry: unknown) => ipcRenderer.send('ui-layout:debug', entry),

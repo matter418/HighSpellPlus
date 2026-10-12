@@ -69,9 +69,9 @@ declare global {
         };
         /** Per-client HUD layout for the movable game panels (uiLayout.js). */
         uiLayout: {
-            get: () => Promise<Record<string, { dx: number; dy: number; scale: number }>>;
-            set: (layout: Record<string, { dx: number; dy: number; scale: number }>) => void;
-            onChanged: (cb: (layout: Record<string, { dx: number; dy: number; scale: number }>) => void) => void;
+            get: () => Promise<{ shared: Record<string, { dx: number; dy: number; scale: number }>; accounts: Record<string, Record<string, { dx: number; dy: number; scale: number }>> }>;
+            set: (scope: string, layout: Record<string, { dx: number; dy: number; scale: number }>) => void;
+            onChanged: (cb: (store: { shared: Record<string, { dx: number; dy: number; scale: number }>; accounts: Record<string, Record<string, { dx: number; dy: number; scale: number }>> }) => void) => void;
             /** Append a diagnostics record to userData/ui-layout-debug.jsonl. */
             debug: (entry: unknown) => void;
         };

@@ -63,14 +63,60 @@ The list of plugins the in-app Plugin Hub offers, and the plugin bundles it inst
 - `plugins/` — the built bundles, served straight from the repository
 
 ### Plugins
-The plugins written for Highspell+, each in its own repository:
-- [Chat+](https://github.com/matter418/ChatPlus) — chat tabs, filters, alert words
-- [Quick Deposit](https://github.com/matter418/QuickDeposit) — one-click bank and crafting quantities
-- [Quick Drop](https://github.com/matter418/QuickDrop) — one-click item dropping
-- [Tile Markers](https://github.com/matter418/TileMarkers) — mark tiles in the world
-- [HighSpell TCG](https://github.com/matter418/HighspellTCG) — a trading card game metagame
+All of these are available from the in-app Plugin Hub. Each name links to the plugin's source repository.
 
-Plugins built for other `@ryelite/core` clients work as-is; the hub also carries those that were previously available.
+**Highspell+ plugins**
+
+| Plugin | Author | What it does |
+|---|---|---|
+| [Quick Deposit](https://github.com/matter418/QuickDeposit) | matter | Skip the right-click menu in bank and crafting interfaces — configure left-click to do a chosen amount. |
+| [Quick Drop](https://github.com/matter418/QuickDrop) | matter | Drop an inventory item with a single configurable click (left, right, or shift) instead of the right-click menu. |
+| [Tile Markers](https://github.com/matter418/TileMarkers) | matter | Mark tiles in the world with a colored border and label via shift + right-click. Includes a built-in T3 Maps preset. |
+| [Chat+](https://github.com/matter418/ChatPlus) | matter | Split chat into tabs (All, Local, Global, System, Private) with unread counts, ignore/block/alert-word filters, custom colours, and adjustable size. |
+| [HighSpell TCG](https://github.com/matter418/HighspellTCG) | matter | A trading card game for High Spell: earn credits by playing, open packs, and collect cards for every item and creature in the game. |
+
+**Third-party plugins** (36)
+
+| Plugin | Author | What it does |
+|---|---|---|
+| [Bank Tabs](https://github.com/RyeL1te/Plugins) | 0rangeYouGlad | Bank Tabs! Check the settings to enable customization. |
+| [Chat Enhancer](https://github.com/CodyBrunson/ChatEnhancer) | JayArrowz/Tomb | Makes the chat look a bit prettier. |
+| [Chat Item Tooltip](https://github.com/CodyBrunson/Chat-Item-Tooltip) | JayArrowz/Tomb | Adds in ability to share items via chat. |
+| [Clan Tags](https://github.com/RyeL1te/Plugins) | 0rangeYouGlad | Tags for clans that display in chat and player nameplates. Appears as the 'Player Tagger' plugin in the side panel. |
+| [Coin Counter](https://github.com/RyeL1te/Plugins) | Highl1te | Shows a display of how many coins you have across your bank and inventory. |
+| [Context Menu Options](https://github.com/RyeL1te/Plugins) | Highl1te | Allows you to change the priority of certain context menu options. |
+| [Current Status](https://github.com/CodyBrunson/Current-Status) | Highlite | Shows your characters current status. |
+| [Custom Cursors](https://github.com/RyeL1te/Plugins) | 0rangeYouGlad | Fancy new cursors, with presets using Highspell icons |
+| [Definitions Panel](https://github.com/CodyBrunson/definitions-panel) | JayArrowz/Tomb | Allows you to search for any item/npc in the game. |
+| [Drop Log](https://github.com/CodyBrunson/HL_Plugins) | Tomb/0rangeyouglad | Track the drops you recieve from monsters. |
+| [Enhanced HP Bars](https://github.com/CodyBrunson/enhanced-hp-bars) | Highl1te | Gives slightly nicer HP bars. |
+| [Entity Highlighter](https://github.com/CodyBrunson/Entity-Highlighter) | Tomb | Puts little tags over the selected entities. |
+| [Experience Tracker](https://github.com/RyeL1te/Plugins) | Highl1te | Gives you an estimated XP/Hour for skills you are training alongside Actions left. |
+| [Extra info bar](https://github.com/valsekamerplant/extra_info_bar) | Valse Kamerplant | adds icons with extra info about ammunition and edible buffs with timers |
+| [FPS Limiter](https://github.com/RyeL1te/Plugins) | Highl1te | Allows you to control the FPS of the game so that it doesn't hog system resources. |
+| [HP Alert](https://github.com/RyeL1te/Plugins) | Highl1te | Allows you to enable notifications and audio alerts for low HP. |
+| [Idle Alert](https://github.com/CodyBrunson/Idle-Alert) | Highl1te | Alerts you when you are about to go idle. |
+| [Inventory Tooltips](https://github.com/valsekamerplant/inventory_tooltips) | Valse Kamerplant | Adds extra info to inventoy items liek relative stat changes and edible statusses |
+| [Iron Mode](https://github.com/BakaZora/highlite-plugins) | Zora | See yours and other players iron statuses in the chat, or try playing an iron yourself! Supports Iron, Hardcore, Ultimate, and Group Iron playstyles! |
+| [Keep On Death](https://github.com/wienerWizard/highspell-keep-on-death) | wienerWizard | Display which items will be kept, dropped, or destroyed when you die |
+| [Map Plugin](https://github.com/RyeL1te/Plugins) | Highl1te | Allows you to open a map (highlite.dev/map) with your position indicated on the map. |
+| [Minimap Icons](https://github.com/CodyBrunson/minimap-icons) | JayArrowz/Tomb | Puts icons for things on the minimap. |
+| [Minimap Markers](https://github.com/CodyBrunson/minimap-markers) | JayArrowz/Tomb | Allows you to get an arrow that points to specific coords |
+| [Nameplates](https://github.com/RyeL1te/Plugins) | Highl1te | Adds customizable overhead nameplates for players, npcs, and ground items. |
+| [PM Alerts](https://github.com/RyeL1te/Plugins) | Highl1te | Allows you to recieve notifications and a sound alert whenever a PM is recieved. |
+| [Quick-Action Tooltip](https://github.com/RyeL1te/Plugins) | 0rangeYouGlad | Shows the current quick action (what you're about to click) as a tooltip |
+| [Skill Guide Details](https://github.com/RyeL1te/Plugins) | 0rangeYouGlad | Improved Skill Guides that show recipes, facilities, tools, XP, and other notes (thanks to JustATextBox, Snakeyes244, and RealSizzler for the help!) |
+| [Skill Orbs](https://github.com/crispybittie/SkillOrbs) | Ellz | Track your skills and experience directly over the game window! |
+| [Spell Sound](https://github.com/ash-of-the-meadow/Highlite_SpellSound) | Bpcooldude | Adds a variety of in-game sounds, effects, and music to liven up the Highspell Experience. |
+| [Spell Tooltips](https://github.com/SoggyPiggy/Highlite-Spell-Tooltips-Plugin) | Soggypiggy | Information on hover for spells |
+| [Stat Bars](https://github.com/SoggyPiggy/Highlite-Stat-Bars-Plugin) | Soggypiggy | XP progress bars beneath skills in the stats menu |
+| [Tick Counter and Metronome](https://github.com/RyeL1te/Plugins) | 0rangeYouGlad | A simple tick counter and metronome |
+| [Trade Alerts](https://github.com/RyeL1te/Plugins) | Highl1te | Allows you to recieve notifications and sound alerts whenever a trade request is recieved. |
+| [Treasure Solver](https://github.com/CodyBrunson/HL_Plugins) | Highlite | Adds a panel to help solve treasure maps faster. |
+| [TTS Chat](https://github.com/RyeL1te/Plugins) | 0rangeYouGlad | Text-to-speech for chat. Uses your system's available voice packs. |
+| [XP Orb](https://github.com/CodyBrunson/HL_Plugins) | JayArrowz/Tomb | Adds an XP orb with Session & Total XP |
+
+Plugins built for other `@ryelite/core` clients work as-is: the hub carries the bundle each author published, verified by sha256.
 
 ### Plugin API (`@ryelite/core`)
 Game hooks and the plugin framework come from the `@ryelite/core` package, which Highspell+ keeps a copy of so nothing depends on anyone else's infrastructure staying up:

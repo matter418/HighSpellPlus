@@ -1,7 +1,7 @@
 {
   "name": "highspellplus",
   "productName": "Highspell+",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Highspell+ — a RuneLite-esque client for the game High Spell (fork of RyeLite)",
   "homepage": "https://github.com/matter418/HighSpellPlus#readme",
   "engines": {
@@ -98,7 +98,7 @@
     "@electron-toolkit/preload": "^3.0.2",
     "@electron-toolkit/utils": "^4.0.0",
     "@iconify/iconify": "^3.1.1",
-    "@ryelite/core": "0.1.1",
+    "@ryelite/core": "file:./vendor/ryelite-core-0.1.1.tgz",
     "electron-log": "^5.4.2",
     "electron-updater": "^6.6.7",
     "idb": "^8.0.3",

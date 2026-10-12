@@ -72,8 +72,13 @@ The plugins written for Highspell+, each in its own repository:
 
 Plugins built for other `@ryelite/core` clients work as-is; the hub also carries those that were previously available.
 
-### Plugin API (`@ryelite/core` on npm)
-Highspell+ loads game hooks and plugins through the upstream `@ryelite/core` package, unchanged (source: [ash-of-the-meadow/rl-core](https://github.com/ash-of-the-meadow/rl-core)). Plugins import their `Plugin` base class and settings types from it; the older `@highlite/plugin-api` is still mapped for legacy plugins.
+### Plugin API (`@ryelite/core`)
+Game hooks and the plugin framework come from the `@ryelite/core` package, which Highspell+ keeps a copy of so nothing depends on anyone else's infrastructure staying up:
+- `vendor/ryelite-core-0.1.1.tgz` — the package itself; `package.json` installs it from there, never from the npm registry
+- `static/vendor/ryelite-core-0.1.1.js` — the same framework served to the game page as `hsplus://vendor/…`; the import map in `client.html` resolves `@ryelite/core`, `@highlite/core` and `@highlite/plugin-api` (older plugins use the old names) to it, so plugins load their framework from inside the app rather than a CDN
+- [HighSpellPlus-Core](https://github.com/matter418/HighSpellPlus-Core) — a full mirror of the package's source (GPL-3.0), for when it needs changes
+
+See [vendor/README.md](vendor/README.md) for how to move to a newer core.
 
 # Development
 ## Prerequisites

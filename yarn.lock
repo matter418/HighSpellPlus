@@ -853,9 +853,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@ryelite/core@npm:0.1.1":
+"@ryelite/core@file:./vendor/ryelite-core-0.1.1.tgz::locator=highspellplus%40workspace%3A.":
   version: 0.1.1
-  resolution: "@ryelite/core@npm:0.1.1"
+  resolution: "@ryelite/core@file:./vendor/ryelite-core-0.1.1.tgz#./vendor/ryelite-core-0.1.1.tgz::hash=4cd3e5&locator=highspellplus%40workspace%3A."
   dependencies:
     acorn: "npm:^8.15.0"
     acorn-walk: "npm:^8.3.4"
@@ -2393,7 +2393,7 @@ __metadata:
     "@electron-toolkit/tsconfig": "npm:^1.0.1"
     "@electron-toolkit/utils": "npm:^4.0.0"
     "@iconify/iconify": "npm:^3.1.1"
-    "@ryelite/core": "npm:0.1.1"
+    "@ryelite/core": "file:./vendor/ryelite-core-0.1.1.tgz"
     "@types/node": "npm:^22.17.1"
     electron: "npm:^37.2.6"
     electron-builder: "npm:^26.1.0"

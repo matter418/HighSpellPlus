@@ -37,6 +37,7 @@ import {
     Session,
     WebContents,
 } from 'electron';
+import { registerVendorProtocol } from '../../modules/vendorProtocol';
 import path from 'path';
 import { format } from 'url';
 import log from 'electron-log';
@@ -92,6 +93,8 @@ function prepareSession(ses: Session) {
         ses.webRequest.onBeforeRequest({ urls: ['*://highlite.dev/*'] }, (details, callback) => {
             callback({ redirectURL: details.url.replace('highlite.dev', 'ryelite.org') });
         });
+        // The default session gets this in main/index.ts.
+        registerVendorProtocol(ses);
     }
 
     if (!app.isPackaged) {

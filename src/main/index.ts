@@ -13,7 +13,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-import { app, BrowserWindow, ipcMain } from 'electron';
+import { app, BrowserWindow, ipcMain, session } from 'electron';
 import { electronApp } from '@electron-toolkit/utils';
 import { createUpdateWindow } from './windows/updater';
 import { registerConsoleIPC, getConsoleWindow } from './windows/console';
@@ -22,6 +22,7 @@ import { addAccountToShell } from './windows/shell';
 import log from 'electron-log';
 import registerScreenshotIPC from './modules/screenshotManagement/index';
 import { registerUiLayoutIPC } from './modules/uiLayoutStore';
+import { registerVendorScheme, registerVendorProtocol } from './modules/vendorProtocol';
 import fs from 'fs';
 import path from 'path';
 
@@ -46,6 +47,10 @@ log.initialize({ spyRendererConsole: true });
 log.transports.console.level = 'info';
 log.transports.file.level = 'debug';
 
+// The vendored plugin framework is served over hsplus:// (modules/vendorProtocol); the
+// scheme must be declared before the app is ready.
+registerVendorScheme();
+
 const gotTheLock = app.requestSingleInstanceLock();
 if (!gotTheLock) {
     app.quit();
@@ -53,6 +58,7 @@ if (!gotTheLock) {
 
 app.whenReady().then(async () => {
     electronApp.setAppUserModelId('com.highspellplus.desktop');
+    registerVendorProtocol(session.defaultSession);
     const updateWindow: BrowserWindow = await createUpdateWindow();
 
     // Console window is created lazily on first "show-console" (see windows/console).

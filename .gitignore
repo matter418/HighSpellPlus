@@ -157,3 +157,6 @@ plugins/
 # Local AI-assistant notes and config — never published
 CLAUDE.md
 .claude/
+
+# Vendored packages are deliberately committed (see vendor/README.md)
+!vendor/*.tgz

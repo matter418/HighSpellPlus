@@ -60,6 +60,14 @@ if not defined COPIED (
 exit /b 0
 
 :start
+rem A running client holds the single-instance lock; a second launch would just add an account
+rem tab to it and exit, which looks like "nothing happened" when you wanted a fresh start.
+tasklist /FI "IMAGENAME eq electron.exe" 2>nul | find /I "electron.exe" >nul
+if not errorlevel 1 (
+  echo === Closing the running Highspell+ client first ===
+  taskkill /F /IM electron.exe >nul 2>&1
+  timeout /t 2 /nobreak >nul
+)
 echo === Starting Highspell+ dev client ===
 node node_modules\electron-vite\bin\electron-vite.js dev
 if errorlevel 1 goto :err

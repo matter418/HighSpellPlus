@@ -91,6 +91,19 @@ function createFieldEl(sectionKey: string, field: any): HTMLElement {
             control = select;
             break;
         }
+        case 'button': {
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.textContent = field.buttonText || field.label;
+            btn.className = 'btn btn-secondary setting-action';
+            btn.addEventListener('click', () => {
+                window.electron.ipcRenderer.send(field.action);
+                btn.textContent = 'Done';
+                setTimeout(() => { btn.textContent = field.buttonText || field.label; }, 1500);
+            });
+            control = btn;
+            break;
+        }
         case 'color': {
             const input = document.createElement('input');
             input.type = 'color';
@@ -283,7 +296,8 @@ async function renderSettings() {
         (section.fields || []).forEach((field: any) => {
             const fieldEl = createFieldEl(sectionKey, field);
             // collect controls and seed snapshot
-            const control = fieldEl.querySelector('.setting-input') as HTMLElement | null;
+            // Buttons are actions, not values: they take no part in dirty tracking or saving.
+            const control = field.type === 'button' ? null : fieldEl.querySelector('.setting-input') as HTMLElement | null;
             if (control) {
                 const key = `${sectionKey}:${field.label}`;
                 (control as HTMLElement).setAttribute('data-key', key);

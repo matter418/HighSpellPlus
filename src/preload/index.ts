@@ -43,6 +43,22 @@ const accountAPI = {
     notifyWarning: (level: 'warning' | 'error') => ipcRenderer.send('account:warning', level),
     notifyAttention: (kind: string) => ipcRenderer.send('account:attention', kind),
     clearAttention: () => ipcRenderer.send('account:attention', null),
+    /** Ask the shell to close this account (confirms if logged in). */
+    requestClose: () => ipcRenderer.send('account:close'),
+    /** How many accounts the window currently has (sent on every change). */
+    onAccountCount: (cb: (count: number) => void) => {
+        ipcRenderer.on('account:count', (_e, n: number) => cb(n));
+    },
+};
+
+// Per-client HUD layout (movable/resizable game panels); shared by every window and view.
+const uiLayoutAPI = {
+    get: () => ipcRenderer.invoke('ui-layout:get'),
+    set: (layout: Record<string, { dx: number; dy: number; scale: number }>) => ipcRenderer.send('ui-layout:set', layout),
+    onChanged: (cb: (layout: Record<string, { dx: number; dy: number; scale: number }>) => void) => {
+        ipcRenderer.on('ui-layout:changed', (_e, l) => cb(l));
+    },
+    debug: (entry: unknown) => ipcRenderer.send('ui-layout:debug', entry),
 };
 
 // Used only by shell.html.
@@ -68,6 +84,7 @@ if (process.contextIsolated) {
         contextBridge.exposeInMainWorld('screenshot', screenshotAPI);
         contextBridge.exposeInMainWorld('account', accountAPI);
         contextBridge.exposeInMainWorld('shell', shellAPI);
+        contextBridge.exposeInMainWorld('uiLayout', uiLayoutAPI);
     } catch (error) {
         console.error(error);
     }
@@ -82,4 +99,6 @@ if (process.contextIsolated) {
     window.account = accountAPI;
     // @ts-ignore
     window.shell = shellAPI;
+    // @ts-ignore
+    window.uiLayout = uiLayoutAPI;
 }

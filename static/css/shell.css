@@ -89,6 +89,26 @@ body {
 #collapseBtn:hover { border-color: var(--shell-muted); }
 /* Tab strips never collapse, so the title-bar button only exists for dock layouts. */
 body:not(.dock-layout) #collapseBtn { display: none; }
+
+/* Multibox: no strip, no dock; just an add button and the count in the title bar. */
+#multibox-controls {
+    display: none;
+    align-items: center;
+    gap: 6px;
+    margin-right: 6px;
+}
+body[data-layout="multibox"] #multibox-controls { display: flex; }
+#multiboxAdd {
+    width: 22px;
+    height: 22px;
+    border-radius: 6px;
+    border: 1px dashed #3a3f48;
+    color: var(--shell-muted);
+    align-items: center;
+    justify-content: center;
+}
+#multiboxAdd:hover { color: #fff; border-color: var(--shell-muted); }
+#multibox-controls .acct-count { margin-left: 0; align-self: center; }
 body[data-layout="top"]    .collapse-chevron { transform: rotate(0deg); }
 body[data-layout="bottom"] .collapse-chevron { transform: rotate(180deg); }
 body[data-layout="left"]   .collapse-chevron { transform: rotate(-90deg); }

@@ -26,6 +26,7 @@ import { BrowserWindow, ipcMain, dialog, app } from "electron";
 
 // Let every open page (shell, game views, console) react to a saved setting without a restart.
 function broadcastSettingsChanged() {
+    ipcMain.emit('settings:changed'); // main-process listeners (e.g. the multi-account shell)
     for (const win of BrowserWindow.getAllWindows()) {
         if (win.isDestroyed()) continue;
         win.webContents.send('settings:changed');

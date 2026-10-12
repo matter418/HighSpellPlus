@@ -33,7 +33,7 @@ interface ShellState {
 }
 
 interface ShellConfig {
-    layout: 'top' | 'bottom' | 'left' | 'right';
+    layout: 'top' | 'bottom' | 'left' | 'right' | 'multibox';
     previews: boolean;
     startCollapsed: boolean;
     attentionColor: string;
@@ -64,6 +64,16 @@ declare global {
             /** Ask the shell to flash this account's tab (e.g. 'idle'). */
             notifyAttention: (kind: string) => void;
             clearAttention: () => void;
+            requestClose: () => void;
+            onAccountCount: (cb: (count: number) => void) => void;
+        };
+        /** Per-client HUD layout for the movable game panels (uiLayout.js). */
+        uiLayout: {
+            get: () => Promise<Record<string, { dx: number; dy: number; scale: number }>>;
+            set: (layout: Record<string, { dx: number; dy: number; scale: number }>) => void;
+            onChanged: (cb: (layout: Record<string, { dx: number; dy: number; scale: number }>) => void) => void;
+            /** Append a diagnostics record to userData/ui-layout-debug.jsonl. */
+            debug: (entry: unknown) => void;
         };
         /** Debug hook installed by idleWatch.js in shell-hosted views. */
         __hsplusIdleWatch?: () => unknown;

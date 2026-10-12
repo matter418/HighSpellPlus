@@ -23,7 +23,7 @@
 
 import '@iconify/iconify';
 
-type Layout = 'top' | 'bottom' | 'left' | 'right';
+type Layout = 'top' | 'bottom' | 'left' | 'right' | 'multibox';
 type AccountState = 'loading' | 'login' | 'ingame' | 'crashed';
 
 interface AccountInfo {
@@ -87,6 +87,10 @@ document.getElementById('screenshotBtn')?.addEventListener('click', async () => 
 document.getElementById('collapseBtn')?.addEventListener('click', (e) => {
     e.preventDefault();
     toggleCollapsed();
+});
+document.getElementById('multiboxAdd')?.addEventListener('click', (e) => {
+    e.preventDefault();
+    window.shell.add();
 });
 
 const warningIndicator = document.getElementById('warningIndicator')!;
@@ -285,6 +289,13 @@ function renderDock(container: HTMLElement) {
     container.appendChild(footer);
 }
 
+function renderMultiboxControls() {
+    const count = document.getElementById('multiboxCount');
+    if (count) count.textContent = `${state.accounts.length} / ${state.max}`;
+    const add = document.getElementById('multiboxAdd');
+    if (add) add.style.display = state.accounts.length >= state.max ? 'none' : '';
+}
+
 function render() {
     stripTop.replaceChildren();
     stripBottom.replaceChildren();
@@ -295,7 +306,9 @@ function render() {
         case 'bottom': renderStrip(stripBottom); break;
         case 'left': renderDock(dockLeft); break;
         case 'right': renderDock(dockRight); break;
+        case 'multibox': break; // every account is on screen; nothing to list
     }
+    renderMultiboxControls();
     const active = state.accounts.find(a => a.active);
     document.title = active && active.name ? `Highspell+ - ${active.name}` : 'Highspell+';
 }

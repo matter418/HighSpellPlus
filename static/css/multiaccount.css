@@ -1,0 +1,69 @@
+/*
+Copyright (C) 2025  HighLite
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see <https://www.gnu.org/licenses/>.
+*/
+
+/* Styles for a game page hosted inside the multi-account shell. */
+
+:root {
+    --hsplus-idle-color: #f9f449;
+}
+
+/* Close-this-account button at the top of the plugin rail (above Plugin Hub). */
+.highlite_bar .hsplus-close-account {
+    color: rgba(255, 255, 255, 0.7);
+    border-radius: 4px;
+    margin-bottom: 2px;
+}
+.highlite_bar .hsplus-close-account:hover {
+    color: #fff;
+    background: var(--theme-danger, #ef4444);
+}
+
+/* Fallback when plugins (and the rail) are disabled. */
+.hsplus-close-account--floating {
+    position: fixed;
+    top: 6px;
+    right: 6px;
+    width: 26px;
+    height: 26px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 6px;
+    background: rgba(20, 20, 20, 0.8);
+    border: 1px solid #353535;
+    color: rgba(255, 255, 255, 0.7);
+    cursor: pointer;
+    z-index: 10001;
+}
+.hsplus-close-account--floating:hover {
+    color: #fff;
+    background: var(--theme-danger, #ef4444);
+}
+
+/* Idle cue: a pulsing inset border around the whole game view while the character is idle.
+   Drawn inside the page so it shows in the Multibox grid, where there is no tab to flash. */
+body.hsplus-idle #hs-screen-mask::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    z-index: 2147483000;
+    box-shadow: inset 0 0 0 5px var(--hsplus-idle-color);
+    animation: hsplus-idle-pulse 1s ease-in-out infinite alternate;
+}
+
+@keyframes hsplus-idle-pulse {
+    from { opacity: 0.25; }
+    to   { opacity: 1; }
+}

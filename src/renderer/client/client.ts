@@ -20,8 +20,12 @@ import '@iconify/iconify';
 import '@static/css/index.css';
 import '@static/css/overrides.css';
 import '@static/css/item-tooltip.css';
+import '@static/css/ui-layout.css';
+import '@static/css/multiaccount.css';
 
 import './helpers/titlebarHelpers.js';
+import { initUiLayout } from './helpers/uiLayout.js';
+import { initAccountClose } from './helpers/accountClose.js';
 import { setupWorldSelectorObserver } from './helpers/worldSelectHelper';
 import { initFrameThrottle, setHidden, setHiddenFrameRate } from './helpers/frameThrottle.js';
 import { initIdleWatch } from './helpers/idleWatch.js';
@@ -273,6 +277,9 @@ import('./helpers/userHelper').then(module => {
     module.createUserHelper();
 });
 
+// Movable / resizable HUD (modifier + drag), layout shared across all accounts.
+initUiLayout();
+
 if (await window.settings.getByName('Enable Plugins')) {
     let highlite = new Highlite();
 
@@ -308,7 +315,9 @@ if (await window.settings.getByName('Enable Plugins')) {
     await highlite.start();
     // Multi-account shell only: flash this account's tab when its character goes idle.
     initIdleWatch();
+    initAccountClose();
 } else {
+    initAccountClose(); // no plugin rail: floats a close button instead
     for (const element of document.getElementsByClassName('highlite-ui')) {
         element.remove();
     }

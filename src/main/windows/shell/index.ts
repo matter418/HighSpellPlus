@@ -58,7 +58,7 @@ interface Account {
 }
 
 export interface ShellConfig {
-    layout: 'top' | 'bottom' | 'left' | 'right';
+    layout: 'top' | 'bottom' | 'left' | 'right' | 'multibox';
     previews: boolean;
     startCollapsed: boolean;
     /** Hidden-view render rate and dock thumbnail refresh rate. */
@@ -132,13 +132,40 @@ function readConfig(): ShellConfig {
     const color = String(settingsService.get('MultiAccount', 'Idle Alert Color') ?? '');
     return {
         attentionColor: /^#[0-9a-fA-F]{6}$/.test(color) ? color : '#f9f449',
-        layout: (['top', 'bottom', 'left', 'right'].includes(layout) ? layout : 'top') as ShellConfig['layout'],
+        layout: (['top', 'bottom', 'left', 'right', 'multibox'].includes(layout) ? layout : 'top') as ShellConfig['layout'],
         previews: settingsService.get('MultiAccount', 'Live Previews') !== false,
         startCollapsed: settingsService.get('MultiAccount', 'Start Collapsed') === true,
         fps: Number.isFinite(fps) && fps > 0 ? Math.min(60, fps) : 15,
         isolateSessions: settingsService.get('MultiAccount', 'Isolate Account Sessions') === true,
         max: MAX_ACCOUNTS,
     };
+}
+
+/**
+ * Multibox grid: how `n` accounts (in slot order) share the content area.
+ * 1 full · 2 side by side · 3 one tall left + two stacked right · 4 quadrants ·
+ * 5 one tall third + four in the other two thirds · 6 three columns by two rows.
+ */
+function multiboxRects(n: number, b: Rectangle): Rectangle[] {
+    const r = (x: number, y: number, w: number, h: number): Rectangle => ({
+        x: Math.round(b.x + x * b.width), y: Math.round(b.y + y * b.height),
+        width: Math.max(1, Math.round(w * b.width)), height: Math.max(1, Math.round(h * b.height)),
+    });
+    switch (Math.min(6, Math.max(1, n))) {
+        case 1: return [r(0, 0, 1, 1)];
+        case 2: return [r(0, 0, 0.5, 1), r(0.5, 0, 0.5, 1)];
+        case 3: return [r(0, 0, 0.5, 1), r(0.5, 0, 0.5, 0.5), r(0.5, 0.5, 0.5, 0.5)];
+        case 4: return [r(0, 0, 0.5, 0.5), r(0.5, 0, 0.5, 0.5), r(0, 0.5, 0.5, 0.5), r(0.5, 0.5, 0.5, 0.5)];
+        case 5: return [
+            r(0, 0, 1 / 3, 1),
+            r(1 / 3, 0, 1 / 3, 0.5), r(2 / 3, 0, 1 / 3, 0.5),
+            r(1 / 3, 0.5, 1 / 3, 0.5), r(2 / 3, 0.5, 1 / 3, 0.5),
+        ];
+        default: return [
+            r(0, 0, 1 / 3, 0.5), r(1 / 3, 0, 1 / 3, 0.5), r(2 / 3, 0, 1 / 3, 0.5),
+            r(0, 0.5, 1 / 3, 0.5), r(1 / 3, 0.5, 1 / 3, 0.5), r(2 / 3, 0.5, 1 / 3, 0.5),
+        ];
+    }
 }
 
 export function isMultiAccountEnabled(): boolean {
@@ -208,6 +235,12 @@ class ShellWindow {
             if (choice !== 0) event.preventDefault();
         });
         this.win.on('closed', () => this.destroy());
+
+        // settingsManagement emits this internal event after any save; the layout may have
+        // switched between multibox and a tab/dock layout, which changes every view's bounds.
+        const onSettings = () => { if (!this.win.isDestroyed()) this.applyBounds(); };
+        ipcMain.on('settings:changed', onSettings);
+        this.win.once('closed', () => ipcMain.removeListener('settings:changed', onSettings));
 
         this.win.loadURL(shellUrl());
 
@@ -302,7 +335,18 @@ class ShellWindow {
             // added account would otherwise show a caret-less login form until the user clicks
             // a tab. Re-focus now that there is a document to receive it.
             if (account.slot === this.activeSlot) this.focusActive();
+            wc.send('account:count', this.accounts.length);
             this.broadcastState();
+        });
+        wc.on('focus', () => {
+            // In multibox every view is visible and a click moves focus; track it so Ctrl+Shift+W
+            // and the idle-alert "active" logic follow the account the user is actually in.
+            if (this.activeSlot !== slot && this.accounts.some(a => a.slot === slot)) {
+                this.activeSlot = slot;
+                const acct = this.accounts.find(a => a.slot === slot);
+                if (acct) acct.attention = null;
+                this.broadcastState();
+            }
         });
         wc.on('render-process-gone', (_event, details) => {
             log.error(`Account ${slot} renderer gone: ${details.reason}`);
@@ -311,7 +355,6 @@ class ShellWindow {
         });
 
         this.win.contentView.addChildView(view);
-        view.setBounds(this.contentBounds);
         wc.loadURL(clientUrl());
 
         this.activate(slot);
@@ -319,21 +362,32 @@ class ShellWindow {
         return account;
     }
 
+    private isMultibox(): boolean {
+        return readConfig().layout === 'multibox';
+    }
+
     activate(slot: number) {
         const target = this.accounts.find(a => a.slot === slot);
         if (!target) return;
         this.activeSlot = slot;
         target.attention = null; // looking at it answers the alert
-        for (const a of this.accounts) {
-            const visible = a.slot === slot;
+        this.applyBounds();
+        this.focusActive();
+        this.broadcastState();
+    }
+
+    /** Position and show/hide every view for the current layout (tabs/dock = one visible, multibox = grid). */
+    private applyBounds() {
+        const multibox = this.isMultibox();
+        const rects = multibox ? multiboxRects(this.accounts.length, this.contentBounds) : null;
+        this.accounts.forEach((a, i) => {
+            const visible = multibox || a.slot === this.activeSlot;
+            a.view.setBounds(rects ? rects[i] : this.contentBounds);
             a.view.setVisible(visible);
             if (!a.view.webContents.isDestroyed()) {
                 a.view.webContents.send('account:visibility', visible);
             }
-        }
-        target.view.setBounds(this.contentBounds);
-        this.focusActive();
-        this.broadcastState();
+        });
     }
 
     /**
@@ -386,9 +440,16 @@ class ShellWindow {
             const left = [...this.accounts].reverse().find(a => a.slot < slot);
             this.activate((left ?? this.accounts[0]).slot);
         } else {
+            this.applyBounds(); // multibox grid reflows when any account leaves
             this.broadcastState();
         }
         this.syncPreviewTimer();
+    }
+
+    /** Close the account that owns `wc` (the in-view × button). */
+    closeAccountOf(wc: WebContents) {
+        const account = this.accounts.find(a => a.wcId === wc.id);
+        if (account) void this.closeAccount(account.slot);
     }
 
     setAccountState(wc: WebContents, state: AccountState) {
@@ -433,7 +494,7 @@ class ShellWindow {
             width: Math.max(1, Math.round(b.width)),
             height: Math.max(1, Math.round(b.height)),
         };
-        for (const a of this.accounts) a.view.setBounds(this.contentBounds);
+        this.applyBounds();
     }
 
     private handleShortcut(event: Electron.Event, input: Electron.Input) {
@@ -447,6 +508,9 @@ class ShellWindow {
         } else if (input.key.toLowerCase() === 't' && input.shift) {
             event.preventDefault();
             this.addAccount();
+        } else if (input.key.toLowerCase() === 'w' && input.shift) {
+            event.preventDefault();
+            void this.closeAccount(this.activeSlot);
         }
     }
 
@@ -463,6 +527,12 @@ class ShellWindow {
     }
 
     broadcastState() {
+        // Every view learns the account count (the in-view × hides itself when it is the last one).
+        for (const a of this.accounts) {
+            try {
+                if (!a.view.webContents.isDestroyed()) a.view.webContents.send('account:count', this.accounts.length);
+            } catch { /* torn down */ }
+        }
         if (!this.shellReady) return;
         this.sendToShell('shell:state', {
             activeSlot: this.activeSlot,
@@ -498,7 +568,7 @@ class ShellWindow {
         const cfg = readConfig();
         if (cfg.fps !== this.previewFps) this.syncPreviewTimer();
         // Thumbnails are only shown in the dock layouts (a popover over the game area would be
-        // drawn underneath the active view), so don't pay for captures in the tab layouts.
+        // drawn underneath the active view), so don't pay for captures in the tab or multibox layouts.
         const wantsThumbs = cfg.previews && (cfg.layout === 'left' || cfg.layout === 'right');
         if (!wantsThumbs || this.win.isDestroyed()) return;
         for (const a of this.accounts) {
@@ -566,6 +636,7 @@ function registerShellIPC() {
     ipcMain.on('account:state', (event, state: AccountState) => shellFor(event.sender)?.setAccountState(event.sender, state));
     ipcMain.on('account:warning', (event, level: string) => shellFor(event.sender)?.forwardWarning(event.sender, level));
     ipcMain.on('account:attention', (event, kind: string | null) => shellFor(event.sender)?.setAttention(event.sender, kind));
+    ipcMain.on('account:close', (event) => shellFor(event.sender)?.closeAccountOf(event.sender));
 }
 
 export function getShellWindow(): BrowserWindow | null {

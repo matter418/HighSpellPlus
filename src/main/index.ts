@@ -21,6 +21,7 @@ import { createClientWindow } from './windows/client';
 import { addAccountToShell } from './windows/shell';
 import log from 'electron-log';
 import registerScreenshotIPC from './modules/screenshotManagement/index';
+import { registerUiLayoutIPC } from './modules/uiLayoutStore';
 import fs from 'fs';
 import path from 'path';
 
@@ -58,6 +59,7 @@ app.whenReady().then(async () => {
     registerConsoleIPC();
 
     registerScreenshotIPC();
+    registerUiLayoutIPC();
     ipcMain.once('delay-update', async () => {
         await createClientWindow();
         updateWindow.close();

@@ -56,7 +56,7 @@ abstract class SettingsSchema {
 
 interface Section {
     heading: string;
-    fields: Array<Field | DropdownField | DirectoryField | ColorField>;
+    fields: Array<Field | DropdownField | DirectoryField | ColorField | ButtonField>;
     /** Optional warning shown under the section's fields. */
     note?: string;
 }
@@ -87,13 +87,21 @@ interface ColorField extends Field {
     type: SettingTypes.COLOR;
 }
 
+/** Rendered as a button; clicking sends `action` over IPC. Stores no value. */
+interface ButtonField extends Field {
+    type: SettingTypes.BUTTON;
+    buttonText: string;
+    action: string;
+}
+
 enum SettingTypes {
     STRING = 'string',
     NUMBER = 'number',
     BOOLEAN = 'boolean',
     DROPDOWN = 'dropdown',
     DIRECTORY = 'directory',
-    COLOR = 'color'
+    COLOR = 'color',
+    BUTTON = 'button'
 }
 
 const isHexColor = (value: unknown) => typeof value === 'string' && /^#[0-9a-fA-F]{6}$/.test(value);
@@ -138,6 +146,35 @@ export class settingsSchema extends SettingsSchema {
                 } as Field
             ]
         },
+        Interface: {
+            heading: "Interface",
+            fields: [
+                {
+                    label: "Movable Interface",
+                    type: SettingTypes.BOOLEAN,
+                    description: "Hold the modifier key and drag the minimap (its minimize button follows it), compass, logout button, action bars, chat, inventory window or its tab bar to move it; drag a corner square to resize it; double-click to reset it. The layout is shared by every account and remembered between sessions.",
+                    default: true
+                } as Field,
+                {
+                    label: "Layout Modifier Key",
+                    type: SettingTypes.DROPDOWN,
+                    description: "Key to hold while moving or resizing panels.",
+                    default: "Alt",
+                    options: {
+                        "Alt": "Alt",
+                        "Ctrl": "Control",
+                        "Shift": "Shift"
+                    }
+                } as DropdownField,
+                {
+                    label: "Reset Interface Layout",
+                    type: SettingTypes.BUTTON,
+                    description: "Put every panel back where the game draws it, at its normal size, on all accounts.",
+                    buttonText: "Reset layout",
+                    action: "ui-layout:reset"
+                } as ButtonField
+            ]
+        },
         MultiAccount: {
             heading: "Multi-account",
             note: "Each extra account costs roughly 350 MB of RAM and keeps running in the background so it stays logged in.",
@@ -152,13 +189,14 @@ export class settingsSchema extends SettingsSchema {
                 {
                     label: "Account Bar Position",
                     type: SettingTypes.DROPDOWN,
-                    description: "Where the other accounts are shown.",
+                    description: "Where the other accounts are shown. Multibox shows every account at once in a grid (2 side by side, 3 as one tall + two stacked, 4 quadrants, 5 as one tall third + four, 6 as a 3×2 grid) with no tabs or dock.",
                     default: "top",
                     options: {
                         "Tabs on top": "top",
                         "Tabs on bottom": "bottom",
                         "Dock on left": "left",
-                        "Dock on right": "right"
+                        "Dock on right": "right",
+                        "Multibox (all accounts on screen)": "multibox"
                     }
                 } as DropdownField,
                 {

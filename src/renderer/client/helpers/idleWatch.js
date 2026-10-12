@@ -37,20 +37,23 @@ const IGNORED_STATES = [
     ActionState.TradingState,
 ];
 
-const settings = { enabled: true, delaySeconds: 12, sound: 'Off', volume: 60 };
+const settings = { enabled: true, delaySeconds: 12, sound: 'Off', volume: 60, color: '#f9f449' };
 
 async function loadSettings() {
     try {
-        const [enabled, delay, sound, volume] = await Promise.all([
+        const [enabled, delay, sound, volume, color] = await Promise.all([
             window.settings.get('MultiAccount', 'Idle Alert'),
             window.settings.get('MultiAccount', 'Idle Alert Delay (seconds)'),
             window.settings.get('MultiAccount', 'Idle Sound'),
             window.settings.get('MultiAccount', 'Idle Sound Volume (%)'),
+            window.settings.get('MultiAccount', 'Idle Alert Color'),
         ]);
         settings.enabled = enabled !== false;
         settings.delaySeconds = Math.max(1, Number(delay) || 12);
         settings.sound = typeof sound === 'string' ? sound : 'Off';
         settings.volume = Number.isFinite(Number(volume)) ? Number(volume) : 60;
+        settings.color = /^#[0-9a-fA-F]{6}$/.test(String(color)) ? String(color) : '#f9f449';
+        document.documentElement.style.setProperty('--hsplus-idle-color', settings.color);
     } catch {
         // keep defaults
     }
@@ -76,7 +79,11 @@ export function initIdleWatch() {
             alerting = false;
             window.account.clearAttention();
         }
+        document.body.classList.remove('hsplus-idle');
     };
+
+    // Looking at the account (clicking into its view) answers the alert, like switching tabs.
+    window.addEventListener('focus', clearAlert);
 
     const reset = () => {
         lastActionState = ActionState.IdleState;
@@ -137,6 +144,8 @@ export function initIdleWatch() {
                 playAlertSound(settings.sound, settings.volume);
                 window.account.notifyAttention('idle');
                 alerting = true;
+                // In-page cue (pulsing border): visible in the Multibox grid where no tab exists.
+                if (!document.hasFocus()) document.body.classList.add('hsplus-idle');
                 lastActionState = ActionState.IdleState;
                 idlePolls = 0;
             }

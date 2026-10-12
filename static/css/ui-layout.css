@@ -1,0 +1,59 @@
+/*
+Copyright (C) 2025  HighLite
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see <https://www.gnu.org/licenses/>.
+*/
+
+/* Movable HUD edit mode (modifier key held): outlines and corner handles on each panel. */
+
+.hsplus-layout-mode [data-hsplus-panel] {
+    outline: 2px dashed var(--theme-accent, #f9f449);
+    outline-offset: 2px;
+    cursor: move;
+}
+
+.hsplus-layout-mode [data-hsplus-panel].hsplus-layout-dragging {
+    outline-style: solid;
+}
+
+/* Followers ride along with their panel; a thinner outline shows they belong to it. */
+.hsplus-layout-mode [data-hsplus-follower] {
+    outline: 1px dashed var(--theme-accent, #f9f449);
+    outline-offset: 1px;
+    cursor: move;
+}
+
+/* Fixed overlay that holds every panel's corner handles, outside the scaled panels. */
+#hsplus-layout-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 10000;
+    pointer-events: none;
+    display: none;
+}
+#hsplus-layout-overlay.active {
+    display: block;
+}
+
+.hsplus-layout-handle {
+    position: absolute;
+    width: 14px;
+    height: 14px;
+    margin: -7px 0 0 -7px; /* centre on the corner point */
+    box-sizing: border-box;
+    background: var(--theme-accent, #f9f449);
+    border: 2px solid #1a1a1a;
+    border-radius: 3px;
+    pointer-events: auto;
+}
+
+.hsplus-layout-handle--nw, .hsplus-layout-handle--se { cursor: nwse-resize; }
+.hsplus-layout-handle--ne, .hsplus-layout-handle--sw { cursor: nesw-resize; }

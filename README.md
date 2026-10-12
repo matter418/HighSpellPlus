@@ -17,8 +17,9 @@ Highspell+ is an open-source game client for High Spell, forked from [RyeLite](h
 - **Multiple accounts in one window** (up to High Spell's limit of 6): tabs on top or bottom, a dock on the left or right with live thumbnails, or a multibox grid that shows every account at once.
 - **Per-account idle alerts**: a background account's tab flashes, its view tints and an optional sound plays when its character stops what it was doing.
 - **Movable, resizable HUD**: hold Alt (configurable) and drag the minimap, chat, action bars, inventory and more; drag a corner to resize; layouts are remembered, shared or per character.
-- **Lower memory use**: the game bundle is no longer re-parsed on every launch, the console window is created on demand, and bundled plugins avoid per-frame DOM rebuilds.
+- **Lower memory use**: the game bundle is no longer re-parsed on every launch, the console window is created on demand, and Tile Markers no longer rebuilds its overlay every frame.
 - **Settings polish**: colour pickers, sound previews and a restart prompt only for settings that need one.
+- **Self-contained**: the Plugin Hub list and every plugin bundle come from [this project's own hub](https://github.com/matter418/HighSpellPlus-Plugin-Hub), and the plugin framework ships inside the app, so nothing depends on another project's servers or repositories staying up.
 
 # Installing Highspell+
 Highspell+ is packaged as an Electron application and provides [Linux](#Linux), [MacOS](#MacOS), and [Windows](#Windows) support.
@@ -147,12 +148,12 @@ See [vendor/README.md](vendor/README.md) for how to move to a newer core.
 ```bash
 yarn dev          # Start development server with hot reload
 yarn start        # Preview built application without packaging
-run-dev.bat [PluginName ...|all]   # Windows: build the named bundled plugins, copy them in, start the dev client
+run-dev.bat [PluginName ...|all]   # Windows: build the named plugins from plugins/, copy them into the dev client, start it
 ```
 
 ### Building
 ```bash
-yarn build        # Build the application for production (automatically runs prebuild)
+yarn build        # Build the application for production
 yarn build:unpack # Build and create unpacked directory
 ```
 
@@ -175,6 +176,6 @@ yarn format:fix   # Fix formatting issues
 - **`src/preload/`** - Preload Scripts (Middle-man APIs between Node Client and Web Page)
 - **`src/renderer/`** - Renderer process (Web Page Rendering)
 - **`src/shared/`** - Types and constants used by all three of the above
-- **`plugins/`** - Bundled plugins (each its own esbuild project; `run-dev.bat` builds them)
+- **`plugins/`** - Not in the repository: clone plugin repositories here for local development, and `run-dev.bat` builds them and copies the bundle into the dev client
 - **`perf/`** - Profiling helpers: `probe.js` (paste into the F12 console) and `analyze-profile.js` (for .cpuprofile files)
 - **`build/`** - Application icons and build assets

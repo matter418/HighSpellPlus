@@ -21,31 +21,19 @@ Highspell+ is an open-source game client for High Spell, forked from [RyeLite](h
 - **Settings polish**: colour pickers, sound previews and a restart prompt only for settings that need one.
 
 # Installing Highspell+
-Highspell+ is packaged as an Electron application and provides [Linux](#Linux), [MacOS](#MacOS), and [Windows](#Windows) support. Releases are not published yet; the steps below describe how they will work.
+Highspell+ is packaged as an Electron application and provides [Linux](#Linux), [MacOS](#MacOS), and [Windows](#Windows) support.
 
 ## Windows
-1. Obtain the .exe file from the [latest release](https://github.com/matter418/HighSpellPlus/releases/latest)
-> [!WARNING]
-> In Microsoft Edge, you may receive a download warning due to Highspell+ not being commonly downloaded.
->
-> ![image](https://github.com/user-attachments/assets/8dd15f93-29c4-42a8-966b-1bd8a83fa66c)
->
-> You can typically resolve this by clicking '...' and selecting 'Keep'
-
+1. Download the `.exe` installer from the [latest release](https://github.com/matter418/HighSpellPlus/releases/latest)
+2. Run the installer
+3. You will be prompted by the game client when launching to automatically install any future updates!
 
 > [!WARNING]
-> Highspell+ is currently un-signed due to the inherent cost of obtaining signing certificates for software. This results in install and download warnings.
-> If we receive enough players (or complaints!) we will invest in obtaining certificates.
->
-> ![image](https://github.com/user-attachments/assets/90651443-a7ed-42b1-8e60-60af2a54fbf1)
->
-> You can resolve this by clicking 'More Info' and pressing 'Run anyway'
->
-> ![image](https://github.com/user-attachments/assets/f1537d49-7aac-4344-ba6a-77a01339e63f)
->
+> In Microsoft Edge, you may receive a download warning because Highspell+ is not commonly downloaded. You can typically resolve this by clicking '...' on the download and selecting 'Keep'.
 
-3. Install Highspell+
-4. You will be prompted by the game client when launching to automatically install any future updates!
+> [!WARNING]
+> Highspell+ is currently unsigned, because code-signing certificates are expensive. Windows SmartScreen will warn when you run the installer: click 'More info' and then 'Run anyway'.
+
 ## Linux
 1. Obtain the .AppImage file from the [latest release](https://github.com/matter418/HighSpellPlus/releases/latest)
 2. Execute the AppImage
@@ -54,7 +42,9 @@ Highspell+ is packaged as an Electron application and provides [Linux](#Linux), 
 > [!CAUTION]
 > MacOS builds go largely untested so they may be more prone to buggy behavior.
 
-1. Instructions Pending
+1. Download the `.dmg` from the [latest release](https://github.com/matter418/HighSpellPlus/releases/latest)
+2. Open it and drag Highspell+ into Applications
+3. The app is unsigned, so the first launch is blocked: right-click the app and choose Open, or allow it under System Settings → Privacy & Security
 
 # Related Repositories
 The Highspell+ ecosystem is distributed across multiple repositories, each serving a specific purpose in the overall architecture.
@@ -67,20 +57,23 @@ This repository! The desktop application handles:
 - Auto-updater functionality
 - Cross-platform builds (Windows, Linux, macOS)
 
-### [Core](https://github.com/ash-of-the-meadow/rl-core) (`@ryelite/core` on npm)
-The core repository provides two APIs for interacting with the High Spell game code:
-- **@highlite/plugin-api** - Deprecated API - TypeScript type definitions for plugin development - Older api to support current plugins. Support is maintained, but new plugins and code should use ryelite-core.
-- **@ryelite/core** - TypeScript type definitions for plugin development - Current up-to-date api that newer code and plugins should use, unless a feature is only available in the older api.
-Both APIs support:
-- Game state monitoring and interaction APIs
-- High Spell game client integration layer
-- Plugin development framework and utilities
-- Shared interfaces for game data access
+### [Plugin Hub](https://github.com/matter418/HighSpellPlus-Plugin-Hub)
+The list of plugins the in-app Plugin Hub offers, and the plugin bundles it installs:
+- `manifest.json` — one entry per plugin, with the sha256 the client verifies each download against
+- `plugins/` — the built bundles, served straight from the repository
 
-### [Plugin Hub](https://github.com/RyeL1te/Plugin-Hub)
-The Plugin Hub serves as the central registry:
-- Verified plugin configurations
-- Plugin version management
+### Plugins
+The plugins written for Highspell+, each in its own repository:
+- [Chat+](https://github.com/matter418/ChatPlus) — chat tabs, filters, alert words
+- [Quick Deposit](https://github.com/matter418/QuickDeposit) — one-click bank and crafting quantities
+- [Quick Drop](https://github.com/matter418/QuickDrop) — one-click item dropping
+- [Tile Markers](https://github.com/matter418/TileMarkers) — mark tiles in the world
+- [HighSpell TCG](https://github.com/matter418/HighspellTCG) — a trading card game metagame
+
+Plugins built for other `@ryelite/core` clients work as-is; the hub also carries those that were previously available.
+
+### Plugin API (`@ryelite/core` on npm)
+Highspell+ loads game hooks and plugins through the upstream `@ryelite/core` package, unchanged (source: [ash-of-the-meadow/rl-core](https://github.com/ash-of-the-meadow/rl-core)). Plugins import their `Plugin` base class and settings types from it; the older `@highlite/plugin-api` is still mapped for legacy plugins.
 
 # Development
 ## Prerequisites
@@ -91,7 +84,7 @@ The Plugin Hub serves as the central registry:
 1. **Clone the repository**
    ```bash
    git clone https://github.com/matter418/HighSpellPlus.git
-   cd HighspellPlus
+   cd HighSpellPlus
    ```
 
 2. **Install dependencies**

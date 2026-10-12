@@ -13,49 +13,72 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-import { app, BrowserWindow } from 'electron';
+import { app, BrowserWindow, ipcMain } from 'electron';
 import path from 'path';
-import { ipcMain } from 'electron';
-export async function createConsoleWindow() {
-    const consoleWindow = new BrowserWindow({
+
+// The console window used to be created (hidden) at startup, which costs a whole renderer
+// process for the lifetime of the app and makes every console.* call from the game do IPC +
+// DOM work in a window nobody is looking at. It is now created on first "show-console", and
+// messages logged before that are kept in a small ring buffer so the window is populated on open.
+const BUFFER_LIMIT = 300;
+const buffer: any[] = [];
+let consoleWindow: BrowserWindow | null = null;
+
+function buildConsoleWindow(): BrowserWindow {
+    const win = new BrowserWindow({
         width: 800,
         height: 600,
         webPreferences: {
             preload: path.join(__dirname, '../preload/index.js'),
             sandbox: false, // Disable sandboxing for compatibility with some libraries
             webSecurity: app.isPackaged, // Disable web security only in development for CORS
-            
         },
         icon: path.join(__dirname, 'icons/icon.png'),
         titleBarStyle: 'hidden',
-        show: false, // Start hidden, show when ready
+        show: false, // shown once the renderer is ready
     });
 
-   if (!app.isPackaged && process.env['ELECTRON_RENDERER_URL']) {
-       consoleWindow.loadURL(`${process.env['ELECTRON_RENDERER_URL']}/console.html`);
-   } else {
-       consoleWindow.loadFile(path.join(__dirname, '../renderer/console.html'));
-   }
+    if (!app.isPackaged && process.env['ELECTRON_RENDERER_URL']) {
+        win.loadURL(`${process.env['ELECTRON_RENDERER_URL']}/console.html`);
+    } else {
+        win.loadFile(path.join(__dirname, '../renderer/console.html'));
+    }
 
-   consoleWindow.setMenu(null);
+    win.setMenu(null);
+    win.webContents.once('did-finish-load', () => {
+        for (const msg of buffer) win.webContents.send('add-console-message', msg);
+        buffer.length = 0;
+        win.show();
+    });
+    win.on('closed', () => {
+        consoleWindow = null;
+    });
+    return win;
+}
+
+export function getConsoleWindow(): BrowserWindow | null {
+    return consoleWindow;
+}
+
+/** Registers the console IPC handlers. Does NOT create a window. */
+export function registerConsoleIPC() {
     ipcMain.on('show-console', () => {
-        if (consoleWindow) {
-            if (consoleWindow.isMinimized()) {
-                consoleWindow.restore();
-            }
-            consoleWindow.show();
-        } else {
-            console.error('Console window is not initialized');
+        if (!consoleWindow || consoleWindow.isDestroyed()) {
+            consoleWindow = buildConsoleWindow();
+            return;
         }
+        if (consoleWindow.isMinimized()) {
+            consoleWindow.restore();
+        }
+        consoleWindow.show();
     });
 
     ipcMain.on('add-console-message', (data) => {
-        if (consoleWindow) {
+        if (consoleWindow && !consoleWindow.isDestroyed()) {
             consoleWindow.webContents.send('add-console-message', data);
         } else {
-            console.error('Console window is not initialized');
+            buffer.push(data);
+            if (buffer.length > BUFFER_LIMIT) buffer.shift();
         }
     });
-
-    return consoleWindow;
 }

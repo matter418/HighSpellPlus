@@ -128,6 +128,28 @@ jobs:
     steps:      
       - name: Check out Git repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # Every release carries notes: one bullet per commit since the previous release tag,
+      # plus a compare link. Commit subjects are therefore user-facing text.
+      - name: Write release notes
+        id: notes
+        run: |
+          CURRENT="${{ needs.get_version.outputs.tag_name }}"
+          PREVIOUS=$(git tag --list 'v*' --sort=-v:refname | grep -v "^${CURRENT}$" | head -n 1)
+          {
+            echo "## What changed"
+            echo
+            if [ -n "$PREVIOUS" ]; then
+              git log --no-merges --format='- %s' "${PREVIOUS}..${GITHUB_SHA}"
+              echo
+              echo "**Full changelog:** https://github.com/${GITHUB_REPOSITORY}/compare/${PREVIOUS}...${CURRENT}"
+            else
+              git log --no-merges --format='- %s' -n 20 "${GITHUB_SHA}"
+            fi
+          } > release-notes.md
+          cat release-notes.md
 
       - name: Download all artifacts
         if: ${{ !env.ACT }}
@@ -148,6 +170,7 @@ jobs:
           release_name: ${{ needs.get_version.outputs.release_name }}
           draft: ${{ needs.get_version.outputs.draft }}
           prerelease: ${{ needs.get_version.outputs.prerelease }}
+          body_path: release-notes.md
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 

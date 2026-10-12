@@ -29,6 +29,7 @@ import { initAccountClose } from './helpers/accountClose.js';
 import { setupWorldSelectorObserver } from './helpers/worldSelectHelper';
 import { initFrameThrottle, setHidden, setHiddenFrameRate } from './helpers/frameThrottle.js';
 import { initIdleWatch } from './helpers/idleWatch.js';
+import { installPluginHubFilter } from './helpers/pluginHubFilter.js';
 
 // Inside the multi-account shell this page may be hidden behind another account. Serve
 // requestAnimationFrame from a slower timer pump while hidden so the game loop and socket keep
@@ -282,6 +283,7 @@ import('./helpers/userHelper').then(module => {
 initUiLayout();
 
 if (await window.settings.getByName('Enable Plugins')) {
+    installPluginHubFilter(); // drops the plugins Highspell+ does not offer (see pluginHubFilter.js)
     let highlite = new Highlite();
 
     // Load and register all plugins using dynamic imports

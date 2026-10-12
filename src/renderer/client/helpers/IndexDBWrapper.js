@@ -14,7 +14,7 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 export class IndexDBWrapper {
-    dbName = 'Ryelite';
+    dbName = 'Highspell+';
     storeName = 'Resources';
     db;
     initialized = false;
@@ -27,26 +27,26 @@ export class IndexDBWrapper {
             openRequest.onsuccess = event => {
                 this.db = event.target.result;
                 console.debug(
-                    `[Ryelite Loader] IndexDB ${this.dbName} opened successfully.`
+                    `[Highspell+ Loader] IndexDB ${this.dbName} opened successfully.`
                 );
                 this.initialized = true;
                 resolve(true);
             };
             openRequest.onerror = event => {
                 console.error(
-                    `[Ryelite Loader] IndexDB ${this.dbName} could not be opened.`
+                    `[Highspell+ Loader] IndexDB ${this.dbName} could not be opened.`
                 );
                 reject(false);
             };
             openRequest.onupgradeneeded = event => {
                 this.db = event.target.result;
                 console.debug(
-                    `[Ryelite Loader] IndexDB ${this.dbName} was created.`
+                    `[Highspell+ Loader] IndexDB ${this.dbName} was created.`
                 );
                 if (this.db) {
                     this.db.createObjectStore(this.storeName);
                     console.debug(
-                        `[Ryelite Loader] IndexDB Object Store ${this.storeName} was created.`
+                        `[Highspell+ Loader] IndexDB Object Store ${this.storeName} was created.`
                     );
                 }
             };
@@ -55,30 +55,30 @@ export class IndexDBWrapper {
     setItem(keyName, value) {
         if (!this.initialized) {
             console.warn(
-                '[Ryelite Loader] Attempted to setItem before the database was initialized'
+                '[Highspell+ Loader] Attempted to setItem before the database was initialized'
             );
             return Promise.resolve(false);
         }
         if (this.db == null) {
             console.warn(
-                `[Ryelite Loader] Attempted to setItem on a 'null' database`
+                `[Highspell+ Loader] Attempted to setItem on a 'null' database`
             );
             return Promise.resolve(false);
         }
         if (!this.db.objectStoreNames.contains(this.storeName)) {
             console.error(
-                `[Ryelite Loader] Object store ${this.storeName} does not exist.`
+                `[Highspell+ Loader] Object store ${this.storeName} does not exist.`
             );
         }
         const transaction = this.db.transaction(this.storeName, 'readwrite');
         transaction.oncomplete = event => {
             console.debug(
-                `[Ryelite Loader] setItem transaction request succeeded`
+                `[Highspell+ Loader] setItem transaction request succeeded`
             );
         };
         transaction.onerror = event => {
             console.warn(
-                `[Ryelite Loader] setItem transaction request failed on ${this.storeName}`
+                `[Highspell+ Loader] setItem transaction request failed on ${this.storeName}`
             );
             return Promise.resolve(false);
         };
@@ -87,13 +87,13 @@ export class IndexDBWrapper {
         return new Promise((resolve, reject) => {
             setRequest.onsuccess = event => {
                 console.debug(
-                    `[Ryelite Loader] setItem set Key: ${keyName} to Value: ${value}`
+                    `[Highspell+ Loader] setItem set Key: ${keyName} to Value: ${value}`
                 );
                 resolve(true);
             };
             setRequest.onerror = event => {
                 console.warn(
-                    `[Ryelite Loader] setItem could not set Key: ${keyName} to Value: ${value}`
+                    `[Highspell+ Loader] setItem could not set Key: ${keyName} to Value: ${value}`
                 );
                 resolve(false);
             };
@@ -102,30 +102,30 @@ export class IndexDBWrapper {
     getItem(keyName) {
         if (!this.initialized) {
             console.warn(
-                '[Ryelite Loader] Attempted to getItem before the database was initialized'
+                '[Highspell+ Loader] Attempted to getItem before the database was initialized'
             );
             return Promise.resolve(null);
         }
         if (this.db == null) {
             console.warn(
-                `[Ryelite Loader] Attempted to getItem on a 'null' database`
+                `[Highspell+ Loader] Attempted to getItem on a 'null' database`
             );
             return Promise.resolve(null);
         }
         if (!this.db.objectStoreNames.contains(this.storeName)) {
             console.error(
-                `[Ryelite Loader] Object store ${this.storeName} does not exist.`
+                `[Highspell+ Loader] Object store ${this.storeName} does not exist.`
             );
         }
         const transaction = this.db.transaction(this.storeName, 'readonly');
         transaction.oncomplete = event => {
             console.debug(
-                `[Ryelite Loader] getItem transaction request succeeded`
+                `[Highspell+ Loader] getItem transaction request succeeded`
             );
         };
         transaction.onerror = event => {
             console.warn(
-                `[Ryelite Loader] getItem transaction request failed on ${this.storeName}`
+                `[Highspell+ Loader] getItem transaction request failed on ${this.storeName}`
             );
         };
         const objectStore = transaction.objectStore(this.storeName);
@@ -133,13 +133,13 @@ export class IndexDBWrapper {
         return new Promise((resolve, reject) => {
             getRequest.onsuccess = event => {
                 console.debug(
-                    `[Ryelite Loader] getItem retrieved Key: ${keyName} with Value: ${getRequest.result}`
+                    `[Highspell+ Loader] getItem retrieved Key: ${keyName} with Value: ${getRequest.result}`
                 );
                 resolve(getRequest.result);
             };
             getRequest.onerror = event => {
                 console.warn(
-                    `[Ryelite Loader] getItem could not retrieve Key: ${keyName}`
+                    `[Highspell+ Loader] getItem could not retrieve Key: ${keyName}`
                 );
                 resolve(null);
             };

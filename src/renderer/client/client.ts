@@ -27,6 +27,16 @@ import { setupWorldSelectorObserver } from './helpers/worldSelectHelper';
 // Load settings via centralized API (values are available via window.settings)
 await window.settings.getAll();
 
+// Reflector keeps the full client source and its acorn AST in static fields after parsing.
+// Once the hook map is saved to IndexedDB nothing reads them again, so drop them.
+function releaseReflectorMemory() {
+    const r = Reflector as any;
+    r.source = null;
+    r.ast = null;
+    r.classes = [];
+    r.enums = [];
+}
+
 async function obtainGameClient() {
     const highspellAssetsURL = 'https://highspell.com:3002/assetsClient';
 
@@ -63,7 +73,7 @@ async function obtainGameClient() {
         !savedHooks
     ) {
         console.log(
-            '[Ryelite Loader] High Spell Client Version is outdated, updating...'
+            '[Highspell+ Loader] High Spell Client Version is outdated, updating...'
         );
 
         // Fetch the latest client
@@ -71,6 +81,7 @@ async function obtainGameClient() {
 
         // Reflect the game hooks
         await Reflector.loadHooksFromSource(highSpellClient);
+        releaseReflectorMemory();
 
         // Inject the hook handlers
         highSpellClient =
@@ -88,13 +99,13 @@ async function obtainGameClient() {
         await highliteResources.setItem('highSpellClient', highSpellClient);
         await highliteResources.setItem('clientLastVersion', remoteLastVersion);
         console.log(
-            '[Ryelite Loader] High Spell Client Version ' +
+            '[Highspell+ Loader] High Spell Client Version ' +
                 highSpellAssetJSON.data.latestClientVersion +
                 ' downloaded.'
         );
     } else {
         console.log(
-            '[Ryelite Loader] High Spell Client Version is up to date.'
+            '[Highspell+ Loader] High Spell Client Version is up to date.'
         );
 
         // Load the client from save db
@@ -103,12 +114,18 @@ async function obtainGameClient() {
         // Load the hooks from db
         await Reflector.loadHooksFromDB();
 
-        // In the background we still bind the latest hook code for dev testing purposes (e.g finding new hooks in a script)
-        setTimeout(async() => {
-
-            // Reflect the game hooks
-            await Reflector.loadHooksFromSource(highSpellClient || '');
-        }, 200);
+        // NOTE: upstream re-parsed the entire game client into an AST here on every launch
+        // ("for dev testing purposes"). That parse ran on the main thread during game startup
+        // and the AST/source were retained for the life of the process. Hooks are already
+        // loaded from the DB above, so it is now opt-in: run
+        //   localStorage.setItem('HSPLUS_REPARSE_HOOKS', '1')
+        // in the console if you need it while hunting for new hooks.
+        if (localStorage.getItem('HSPLUS_REPARSE_HOOKS') === '1') {
+            setTimeout(async () => {
+                await Reflector.loadHooksFromSource(highSpellClient || '');
+                releaseReflectorMemory();
+            }, 200);
+        }
     }
 
     return Promise.resolve(highSpellClient);
@@ -245,7 +262,7 @@ if (await window.settings.getByName('Enable Plugins')) {
     let highlite = new Highlite();
 
     // Load and register all plugins using dynamic imports
-    console.log('[Ryelite] Loading plugins...');
+    console.log('[Highspell+] Loading plugins...');
     const loadedPlugins: Array<{ class: any; name: string; }> = [];
 
     try {
@@ -264,14 +281,14 @@ if (await window.settings.getByName('Enable Plugins')) {
                         name: pluginName,
                     });
                 } else {
-                    console.error(`[Ryelite] Plugin class not found in module: ${pluginName}`);
+                    console.error(`[Highspell+] Plugin class not found in module: ${pluginName}`);
                 }
             } catch (error) {
-                console.error(`[Ryelite] Failed to load plugin from ${path}:`, error);
+                console.error(`[Highspell+] Failed to load plugin from ${path}:`, error);
             }
         }
     } catch (error) {
-        console.error('[Ryelite] Error loading plugins:', error);
+        console.error('[Highspell+] Error loading plugins:', error);
     }
     await highlite.start();
 } else {

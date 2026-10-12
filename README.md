@@ -6,17 +6,17 @@
   <img alt="Downloads" src="https://img.shields.io/github/downloads/Highl1te/HighliteDesktop/latest/total?label=Downloads&color=blue">
 </p>
 
-# RyeLite
+# Highspell+
 
-RyeLite is an open-source game client for High Spell, forked from HighLite. RyeLite is aimed to be a continuation of HighLite, as HL is no longer updated.
+Highspell+ is an open-source game client for High Spell, forked from [Highspell+](https://github.com/RyeL1te/RyeliteDesktop) (itself a continuation of HighLite). It keeps the full Highspell+/HighLite history and plugin compatibility (`@ryelite/core`), with its own performance fixes and features on top.
 
-# Installing RyeLite
-RyeLite is packaged as an Electron application and provides [Linux](#Linux), [MacOS](#MacOS), and [Windows](#Windows) support.
+# Installing Highspell+
+Highspell+ is packaged as an Electron application and provides [Linux](#Linux), [MacOS](#MacOS), and [Windows](#Windows) support.
 
 ## Windows
 1. Obtain the .exe file from the [latest release](https://github.com/ash-of-the-meadow/RyeliteDesktop/releases/latest)
 > [!WARNING]
-> In Microsoft Edge, you may recieve a download warning due to RyeLite not being commonly downloaded.
+> In Microsoft Edge, you may recieve a download warning due to Highspell+ not being commonly downloaded.
 >
 > ![image](https://github.com/user-attachments/assets/8dd15f93-29c4-42a8-966b-1bd8a83fa66c)
 >
@@ -24,7 +24,7 @@ RyeLite is packaged as an Electron application and provides [Linux](#Linux), [Ma
 
 
 > [!WARNING]
-> RyeLite is currently un-signed due to the inherent cost of obtaining signing certificates for software. This results in install and download warnings.
+> Highspell+ is currently un-signed due to the inherent cost of obtaining signing certificates for software. This results in install and download warnings.
 > If we recieve enough players (or complaints!) we will invest in obtaining certificates.
 >
 > ![image](https://github.com/user-attachments/assets/90651443-a7ed-42b1-8e60-60af2a54fbf1)
@@ -34,7 +34,7 @@ RyeLite is packaged as an Electron application and provides [Linux](#Linux), [Ma
 > ![image](https://github.com/user-attachments/assets/f1537d49-7aac-4344-ba6a-77a01339e63f)
 >
 
-3. Install RyeLite
+3. Install Highspell+
 4. You will be prompted by the game client when launching to automatically install any future updates!
 ## Linux
 1. Obtain the .AppImage file from the [latest release](https://github.com/ash-of-the-meadow/RyeliteDesktop/releases/latest)
@@ -47,7 +47,7 @@ RyeLite is packaged as an Electron application and provides [Linux](#Linux), [Ma
 1. Instructions Pending
 
 # Related Repositories
-The RyeLite ecosystem is distributed across multiple repositories, each serving a specific purpose in the overall architecture.
+The Highspell+ ecosystem is distributed across multiple repositories, each serving a specific purpose in the overall architecture.
 
 ### [Desktop Application](https://github.com/ash-of-the-meadow/RyeliteDesktop)
 This repository! The desktop application handles:
@@ -81,7 +81,7 @@ The Plugin Hub serves as the central registry:
 1. **Clone the repository**
    ```bash
    git clone https://github.com/ash-of-the-meadow/RyeliteDesktop.git
-   cd RyeliteDesktop
+   cd Highspell+Desktop
    ```
 
 2. **Install dependencies**

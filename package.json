@@ -1,21 +1,21 @@
 {
-  "name": "ryelite",
-  "productName": "RyeLite",
+  "name": "highspellplus",
+  "productName": "Highspell+",
   "version": "0.2.0",
-  "description": "A RuneLite-esque Client for the game High Spell",
-  "homepage": "https://github.com/RyeL1te/Core#readme",
+  "description": "Highspell+ — a RuneLite-esque client for the game High Spell (fork of RyeLite)",
+  "homepage": "https://github.com/matter418/HighspellPlus#readme",
   "engines": {
     "node": "^22.x.x"
   },
   "bugs": {
-    "url": "https://github.com/RyeL1te/Core/issues"
+    "url": "https://github.com/matter418/HighspellPlus/issues"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/RyeL1te/RyeliteDesktop.git"
+    "url": "git+https://github.com/matter418/HighspellPlus.git"
   },
   "license": "GPL-3.0-only",
-  "author": "Ryelite Team",
+  "author": "Highspell+ contributors",
   "main": "./out/main/index.js",
   "scripts": {
     "dev": "electron-vite dev",
@@ -31,18 +31,19 @@
     "release": "electron-builder"
   },
   "build": {
-    "appId": "com.ryelite.desktop",
-    "copyright": "Copyright © 2025 RyeLite",
+    "appId": "com.highspellplus.desktop",
+    "copyright": "Copyright © 2025 Highspell+ contributors (forked from RyeLite / HighLite)",
     "asar": true,
+    "artifactName": "HighspellPlus-${version}.${ext}",
     "files": [
       "out/**/*.*"
     ],
-    "productName": "RyeLite",
+    "productName": "Highspell+",
     "publish": [
       {
         "provider": "github",
-        "owner": "RyeL1te",
-        "repo": "RyeliteDesktop"
+        "owner": "matter418",
+        "repo": "HighspellPlus"
       }
     ],
     "mac": {
@@ -81,15 +82,15 @@
       "icon": "build/icon.png"
     },
     "nsis": {
-      "artifactName": "${productName}-Setup-${version}.${ext}",
+      "artifactName": "HighspellPlus-Setup-${version}.${ext}",
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
       "installerIcon": "build/icon.ico",
       "uninstallerIcon": "build/icon.ico",
-      "uninstallDisplayName": "RyeLite",
+      "uninstallDisplayName": "Highspell+",
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "RyeLite"
+      "shortcutName": "Highspell+"
     }
   },
   "dependencies": {

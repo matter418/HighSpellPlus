@@ -16,10 +16,29 @@
 import { app, BrowserWindow, ipcMain } from 'electron';
 import { electronApp } from '@electron-toolkit/utils';
 import { createUpdateWindow } from './windows/updater';
-import { createConsoleWindow } from './windows/console';
+import { registerConsoleIPC, getConsoleWindow } from './windows/console';
 import { createClientWindow } from './windows/client';
 import log from 'electron-log';
 import registerScreenshotIPC from './modules/screenshotManagement/index';
+import fs from 'fs';
+import path from 'path';
+
+// One-time migration: the app was renamed from RyeLite to Highspell+, which moves the
+// userData folder (settings, saved logins, installed plugins, IndexedDB). If the new
+// folder doesn't exist yet but the old one does, copy it across so nothing is lost.
+// Must run before anything touches userData (i.e. before app.whenReady()).
+(function migrateUserDataFromRyeLite() {
+    try {
+        const newDir = app.getPath('userData');
+        const oldDir = path.join(path.dirname(newDir), 'RyeLite');
+        if (!fs.existsSync(newDir) && fs.existsSync(oldDir)) {
+            fs.cpSync(oldDir, newDir, { recursive: true });
+            log.info(`Migrated user data from ${oldDir} to ${newDir}`);
+        }
+    } catch (e) {
+        log.warn('User data migration from RyeLite failed:', e);
+    }
+})();
 
 log.initialize({ spyRendererConsole: true });
 log.transports.console.level = 'info';
@@ -30,18 +49,12 @@ if (!gotTheLock) {
     app.quit();
 }
 
-// Keep a reference to the hidden console window so we can close it when no other windows remain
-
-let consoleWindowRef: BrowserWindow | null = null;
-
 app.whenReady().then(async () => {
-    electronApp.setAppUserModelId('com.ryelite.desktop');
+    electronApp.setAppUserModelId('com.highspellplus.desktop');
     const updateWindow: BrowserWindow = await createUpdateWindow();
 
-    consoleWindowRef = await createConsoleWindow();
-    consoleWindowRef.on('closed', () => {
-        consoleWindowRef = null;
-    });
+    // Console window is created lazily on first "show-console" (see windows/console).
+    registerConsoleIPC();
 
     registerScreenshotIPC();
     ipcMain.once('delay-update', async () => {
@@ -57,12 +70,12 @@ app.whenReady().then(async () => {
     // For any future windows created elsewhere, attach a closed handler
     // to determine when only the console window is left.
     app.on('browser-window-created', (_event, win) => {
-        if (win !== consoleWindowRef) {
+        if (win !== getConsoleWindow()) {
             win.on('closed', () => {
-                const others = BrowserWindow.getAllWindows().filter(w => w !== consoleWindowRef);
-                if (others.length === 0 && consoleWindowRef && !consoleWindowRef.isDestroyed()) {
-                    consoleWindowRef.close();
-                    consoleWindowRef = null;
+                const consoleWin = getConsoleWindow();
+                const others = BrowserWindow.getAllWindows().filter(w => w !== consoleWin);
+                if (others.length === 0 && consoleWin && !consoleWin.isDestroyed()) {
+                    consoleWin.close();
                 }
             });
         }

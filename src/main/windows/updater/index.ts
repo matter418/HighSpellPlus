@@ -42,7 +42,7 @@ async function configureAutoUpdater() {
 export async function createUpdateWindow() {
     await configureAutoUpdater();
     const updateWindow = new BrowserWindow({
-        title: 'Updating RyeLite...',
+        title: 'Updating Highspell+...',
         webPreferences: {
             preload: path.join(__dirname, '../preload/index.js'),
             sandbox: false, // Disable sandboxing for compatibility with some libraries
@@ -84,6 +84,12 @@ export async function createUpdateWindow() {
     autoUpdater.on('update-available', async updateInfo => {
         log.info('Update available:', updateInfo.releaseName);
         updateWindow.webContents.send('update-available', updateInfo);
+    });
+
+    autoUpdater.on('error', err => {
+        // No release repo yet / offline / rate-limited: don't hang on the updater window.
+        log.warn('Update check failed, launching without update:', err?.message ?? err);
+        ipcMain.emit('no-update-available');
     });
 
     autoUpdater.on('update-not-available', async () => {

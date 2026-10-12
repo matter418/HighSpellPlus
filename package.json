@@ -1,7 +1,7 @@
 {
   "name": "highspellplus",
   "productName": "Highspell+",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Highspell+ — a RuneLite-esque client for the game High Spell (fork of RyeLite)",
   "homepage": "https://github.com/matter418/HighSpellPlus#readme",
   "engines": {

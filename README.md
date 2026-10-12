@@ -1,9 +1,9 @@
 <p><img src="https://github.com/user-attachments/assets/da5bb809-3949-4854-99e4-1619022444e7" width="128"/></p>
 <p>
   <a href="https://discord.gg/highspell"><img alt="JoinDiscord" src="https://img.shields.io/badge/Discord-Join_Us-purple?style=flat&logo=Discord&label=Discord"/></a>
-  <img alt="GitHub License" src="https://img.shields.io/github/license/matter418/HighspellPlus">
-  <img alt="Build Status" src="https://img.shields.io/github/actions/workflow/status/matter418/HighspellPlus/main.yml">
-  <img alt="Downloads" src="https://img.shields.io/github/downloads/matter418/HighspellPlus/latest/total?label=Downloads&color=blue">
+  <img alt="GitHub License" src="https://img.shields.io/github/license/matter418/HighSpellPlus">
+  <img alt="Build Status" src="https://img.shields.io/github/actions/workflow/status/matter418/HighSpellPlus/main.yml">
+  <img alt="Downloads" src="https://img.shields.io/github/downloads/matter418/HighSpellPlus/latest/total?label=Downloads&color=blue">
 </p>
 
 # Highspell+
@@ -11,7 +11,7 @@
 Highspell+ is an open-source game client for High Spell, forked from [RyeLite](https://github.com/RyeL1te/RyeliteDesktop) (itself a continuation of HighLite). It keeps the full RyeLite/HighLite history and plugin compatibility (`@ryelite/core`), with its own performance fixes and features on top.
 
 > [!NOTE]
-> Highspell+ has no published releases yet. The repository is [matter418/HighspellPlus](https://github.com/matter418/HighspellPlus); until the first release, build it from source (see [Development](#development)).
+> Download the latest installer for Windows, macOS or Linux from the [Releases](https://github.com/matter418/HighSpellPlus/releases/latest) page, or build it from source (see [Development](#development)).
 
 ## What's different from RyeLite
 - **Multiple accounts in one window** (up to High Spell's limit of 6): tabs on top or bottom, a dock on the left or right with live thumbnails, or a multibox grid that shows every account at once.
@@ -24,7 +24,7 @@ Highspell+ is an open-source game client for High Spell, forked from [RyeLite](h
 Highspell+ is packaged as an Electron application and provides [Linux](#Linux), [MacOS](#MacOS), and [Windows](#Windows) support. Releases are not published yet; the steps below describe how they will work.
 
 ## Windows
-1. Obtain the .exe file from the [latest release](https://github.com/matter418/HighspellPlus/releases/latest)
+1. Obtain the .exe file from the [latest release](https://github.com/matter418/HighSpellPlus/releases/latest)
 > [!WARNING]
 > In Microsoft Edge, you may receive a download warning due to Highspell+ not being commonly downloaded.
 >
@@ -47,7 +47,7 @@ Highspell+ is packaged as an Electron application and provides [Linux](#Linux), 
 3. Install Highspell+
 4. You will be prompted by the game client when launching to automatically install any future updates!
 ## Linux
-1. Obtain the .AppImage file from the [latest release](https://github.com/matter418/HighspellPlus/releases/latest)
+1. Obtain the .AppImage file from the [latest release](https://github.com/matter418/HighSpellPlus/releases/latest)
 2. Execute the AppImage
 3. You will be prompted by the game client when launching to automatically install any future updates!
 ## MacOS
@@ -59,7 +59,7 @@ Highspell+ is packaged as an Electron application and provides [Linux](#Linux), 
 # Related Repositories
 The Highspell+ ecosystem is distributed across multiple repositories, each serving a specific purpose in the overall architecture.
 
-### [Desktop Application](https://github.com/matter418/HighspellPlus)
+### [Desktop Application](https://github.com/matter418/HighSpellPlus)
 This repository! The desktop application handles:
 - Electron-based desktop application mechanics
 - Window management and user interface
@@ -90,7 +90,7 @@ The Plugin Hub serves as the central registry:
 ## Getting Started
 1. **Clone the repository**
    ```bash
-   git clone https://github.com/matter418/HighspellPlus.git
+   git clone https://github.com/matter418/HighSpellPlus.git
    cd HighspellPlus
    ```
 

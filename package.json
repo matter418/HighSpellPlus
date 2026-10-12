@@ -1,18 +1,18 @@
 {
   "name": "highspellplus",
   "productName": "Highspell+",
-  "version": "0.2.0",
+  "version": "1.0.0",
   "description": "Highspell+ — a RuneLite-esque client for the game High Spell (fork of RyeLite)",
-  "homepage": "https://github.com/matter418/HighspellPlus#readme",
+  "homepage": "https://github.com/matter418/HighSpellPlus#readme",
   "engines": {
     "node": "^22.x.x"
   },
   "bugs": {
-    "url": "https://github.com/matter418/HighspellPlus/issues"
+    "url": "https://github.com/matter418/HighSpellPlus/issues"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/matter418/HighspellPlus.git"
+    "url": "git+https://github.com/matter418/HighSpellPlus.git"
   },
   "license": "GPL-3.0-only",
   "author": "Highspell+ contributors",
@@ -43,7 +43,7 @@
       {
         "provider": "github",
         "owner": "matter418",
-        "repo": "HighspellPlus"
+        "repo": "HighSpellPlus"
       }
     ],
     "mac": {

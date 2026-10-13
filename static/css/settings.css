@@ -178,6 +178,17 @@ Settings page styles, aligned with index.css and console.css theme tokens
   pointer-events: auto;
 }
 
+#settings-action-bar .save-error {
+  display: none;
+  align-self: center;
+  max-width: 260px;
+  font-size: 13px;
+  color: var(--theme-danger);
+}
+#settings-action-bar.failed .save-error {
+  display: inline;
+}
+
 .btn-apply {
   background: var(--theme-accent);
   color: var(--theme-text-dark);

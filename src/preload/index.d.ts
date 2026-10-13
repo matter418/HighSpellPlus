@@ -22,6 +22,8 @@ declare global {
         settings: {
             get: (section: string, key: string) => Promise<any>;
             set: (section: string, key: string, value: any) => Promise<void>;
+            /** Save several fields in one write; the settings window's Apply uses this. */
+            setMany: (entries: Array<{ section: string; key: string; value: any }>) => Promise<void>;
             getAll: () => Promise<Record<string, any>>;
             getByName: (label: string) => Promise<any>;
             selectDirectory: (options?: { title?: string; defaultPath?: string }) => Promise<string | null>;

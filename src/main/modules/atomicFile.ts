@@ -23,21 +23,80 @@
 import fs from 'fs';
 import path from 'path';
 
+// Every temp name must be unique even when several writes to the same file start in the
+// same millisecond, so a counter joins the pid and timestamp. Two writers sharing one temp
+// name rename each other's file away.
+let tempCounter = 0;
 function tempPathFor(file: string): string {
-    return `${file}.${process.pid}.${Date.now()}.tmp`;
+    tempCounter = (tempCounter + 1) % 1_000_000;
+    return `${file}.${process.pid}.${Date.now()}.${tempCounter}.tmp`;
 }
 
-export async function writeFileAtomic(file: string, data: string | Buffer, mode = 0o644): Promise<void> {
-    await fs.promises.mkdir(path.dirname(file), { recursive: true });
-    const tmp = tempPathFor(file);
-    const handle = await fs.promises.open(tmp, 'w', mode);
-    try {
-        await handle.writeFile(data, typeof data === 'string' ? 'utf8' : undefined);
-        await handle.sync();
-    } finally {
-        await handle.close();
+// Windows refuses to rename over a file that another handle still has open — including a
+// rename that is still replacing it, or an antivirus / indexer that opened the fresh file.
+// A few short retries ride out that window; the error is rethrown if it persists.
+const RENAME_RETRIES = 8;
+const RENAME_DELAY_MS = 25;
+const isTransient = (e: unknown) => {
+    const code = (e as NodeJS.ErrnoException | undefined)?.code;
+    return code === 'EPERM' || code === 'EBUSY' || code === 'EACCES';
+};
+
+async function renameWithRetry(from: string, to: string): Promise<void> {
+    for (let attempt = 0; ; attempt++) {
+        try {
+            await fs.promises.rename(from, to);
+            return;
+        } catch (e) {
+            if (!isTransient(e) || attempt >= RENAME_RETRIES) throw e;
+            await new Promise((r) => setTimeout(r, RENAME_DELAY_MS * (attempt + 1)));
+        }
     }
-    await fs.promises.rename(tmp, file);
+}
+
+function renameWithRetrySync(from: string, to: string): void {
+    for (let attempt = 0; ; attempt++) {
+        try {
+            fs.renameSync(from, to);
+            return;
+        } catch (e) {
+            if (!isTransient(e) || attempt >= RENAME_RETRIES) throw e;
+            Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, RENAME_DELAY_MS * (attempt + 1));
+        }
+    }
+}
+
+// Writes to the same target are queued so they land one after another. Concurrent renames
+// onto one path fail on Windows, and the queue also guarantees the last call's content is
+// what ends up on disk.
+const queues = new Map<string, Promise<unknown>>();
+function enqueue<T>(file: string, task: () => Promise<T>): Promise<T> {
+    const key = path.resolve(file);
+    const prev = queues.get(key) ?? Promise.resolve();
+    const run = prev.catch(() => undefined).then(task);
+    queues.set(key, run);
+    run.finally(() => { if (queues.get(key) === run) queues.delete(key); }).catch(() => undefined);
+    return run;
+}
+
+export function writeFileAtomic(file: string, data: string | Buffer, mode = 0o644): Promise<void> {
+    return enqueue(file, async () => {
+        await fs.promises.mkdir(path.dirname(file), { recursive: true });
+        const tmp = tempPathFor(file);
+        const handle = await fs.promises.open(tmp, 'w', mode);
+        try {
+            await handle.writeFile(data, typeof data === 'string' ? 'utf8' : undefined);
+            await handle.sync();
+        } finally {
+            await handle.close();
+        }
+        try {
+            await renameWithRetry(tmp, file);
+        } catch (e) {
+            await fs.promises.rm(tmp, { force: true }).catch(() => undefined);
+            throw e;
+        }
+    });
 }
 
 export function writeFileAtomicSync(file: string, data: string | Buffer, mode = 0o644): void {
@@ -50,7 +109,12 @@ export function writeFileAtomicSync(file: string, data: string | Buffer, mode = 
     } finally {
         fs.closeSync(fd);
     }
-    fs.renameSync(tmp, file);
+    try {
+        renameWithRetrySync(tmp, file);
+    } catch (e) {
+        fs.rmSync(tmp, { force: true });
+        throw e;
+    }
 }
 
 /**

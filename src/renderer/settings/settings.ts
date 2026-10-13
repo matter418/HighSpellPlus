@@ -259,9 +259,22 @@ async function renderSettings() {
     const resetBtn = document.createElement('button');
     resetBtn.className = 'btn btn-reset';
     resetBtn.textContent = 'Reset';
+    // Shown only when a save fails, so the bar does not just sit there with no explanation.
+    const saveError = document.createElement('span');
+    saveError.className = 'save-error';
+    saveError.setAttribute('role', 'alert');
+    actionBar.appendChild(saveError);
     actionBar.appendChild(resetBtn);
     actionBar.appendChild(applyBtn);
     document.body.appendChild(actionBar);
+    const showSaveError = (msg: string) => {
+        saveError.textContent = msg;
+        actionBar.classList.add('failed');
+    };
+    const clearSaveError = () => {
+        saveError.textContent = '';
+        actionBar.classList.remove('failed');
+    };
 
     const getVal = (el: HTMLElement): string | number | boolean => {
         if ((el as HTMLInputElement).type === 'checkbox') return (el as HTMLInputElement).checked;
@@ -371,36 +384,43 @@ async function renderSettings() {
             const base = snapshot.get(key);
             setVal(c, base);
         });
+        clearSaveError();
         actionBar.classList.remove('visible');
     });
 
     // Apply: promote current values to snapshot
     applyBtn.addEventListener('click', async () => {
-        const invalidElements = document.querySelectorAll('.bad')
+        const invalidElements = document.querySelectorAll('.bad');
         if (invalidElements.length > 0) {
-            // Show validation error
+            showSaveError('Fix the highlighted fields first.');
             return;
         }
+        clearSaveError();
 
-        // Write values back via settings API. Only fields flagged `restart` in the schema are
-        // read solely at startup; everything else is picked up live via 'settings:changed'.
-        const merged: Record<string, any> = {};
+        // Collect every value. Only fields flagged `restart` in the schema are read solely at
+        // startup; everything else is picked up live via 'settings:changed'.
+        const entries: Array<{ section: string; key: string; value: string | number | boolean }> = [];
         let needsRestart = false;
         controls.forEach((c) => {
             const key = (c as HTMLElement).getAttribute('data-key')!; // Section:Label
             const [sectionKey, label] = key.split(':');
-            merged[sectionKey] ||= {};
             const value = getVal(c);
-            merged[sectionKey][label] = value;
+            entries.push({ section: sectionKey, key: label, value });
             if (hasChanged(key, value) && fieldsByKey.get(key)?.restart) needsRestart = true;
         });
 
-        // Save new values via settings API
-        await Promise.all(Object.entries(merged).flatMap(([sectionKey, fields]) =>
-            Object.entries(fields).map(([label, value]) =>
-                window.settings.set(sectionKey, label, value)
-            )
-        ));
+        // One call, one write to disk. A failure keeps the bar up with a message instead of
+        // leaving the user guessing whether anything saved.
+        applyBtn.disabled = true;
+        try {
+            await window.settings.setMany(entries);
+        } catch (e) {
+            console.error('Saving settings failed:', e);
+            showSaveError('Could not save settings. Try again.');
+            return;
+        } finally {
+            applyBtn.disabled = false;
+        }
 
         // Update snapshot after applying
         controls.forEach((c) => {

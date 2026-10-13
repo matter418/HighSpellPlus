@@ -126,14 +126,35 @@ class SettingsService {
     }
 
     async set(section: string, key: string, value: any): Promise<void> {
-        const sec = (settingsSchema.settings as any)?.[section];
-        if (!sec || !Array.isArray(sec.fields)) return;
-        const field = sec.fields.find((f: any) => f && f.label === key);
-        if (field) {
-            field.value = value;
+        if (this.assign(section, key, value)) {
             await this.saveCurrent();
             broadcastSettingsChanged();
         }
+    }
+
+    /**
+     * Update several fields, then write the file once and broadcast once. The settings
+     * window applies every field this way; one call per field meant a burst of concurrent
+     * writes to the same file, which Windows does not tolerate.
+     */
+    async setMany(entries: Array<{ section: string; key: string; value: any }>): Promise<void> {
+        let changed = false;
+        for (const { section, key, value } of entries) {
+            if (this.assign(section, key, value)) changed = true;
+        }
+        if (!changed) return;
+        await this.saveCurrent();
+        broadcastSettingsChanged();
+    }
+
+    /** Set a field's in-memory value. Returns false when the section or field is unknown. */
+    private assign(section: string, key: string, value: any): boolean {
+        const sec = (settingsSchema.settings as any)?.[section];
+        if (!sec || !Array.isArray(sec.fields)) return false;
+        const field = sec.fields.find((f: any) => f && f.label === key);
+        if (!field) return false;
+        field.value = value;
+        return true;
     }
 
     getByName(label: string): any {
@@ -178,6 +199,11 @@ ipcMain.handle('settings:get', async (_event, section: string, key: string) => {
 
 ipcMain.handle('settings:set', async (_event, section: string, key: string, value: any) => {
     await settingsService.set(section, key, value);
+    return true;
+});
+
+ipcMain.handle('settings:setMany', async (_event, entries: Array<{ section: string; key: string; value: any }>) => {
+    await settingsService.setMany(Array.isArray(entries) ? entries : []);
     return true;
 });
 

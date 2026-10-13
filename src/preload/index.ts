@@ -21,6 +21,8 @@ import type { AccountState, PanelLayout, ShellState, UiLayoutStore } from '../sh
 const settingsAPI = {
     get: async (section: string, key: string) => ipcRenderer.invoke('settings:get', section, key),
     set: async (section: string, key: string, value: unknown) => ipcRenderer.invoke('settings:set', section, key, value),
+    setMany: async (entries: Array<{ section: string; key: string; value: unknown }>) =>
+        ipcRenderer.invoke('settings:setMany', entries),
     getAll: async () => ipcRenderer.invoke('settings:getAll'),
     getByName: async (label: string) => ipcRenderer.invoke('settings:getByName', label),
     selectDirectory: async (options?: { title?: string; defaultPath?: string }) =>

@@ -64,6 +64,12 @@ const uiLayoutAPI = {
     },
 };
 
+// Plugin-storage backups (main/modules/storageBackup): the loader calls offerRestore when it
+// finds a freshly created database; main asks the user and relaunches on a restore.
+const storageAPI = {
+    offerRestore: () => ipcRenderer.invoke('storage:offer-restore') as Promise<{ offered: boolean; accepted?: boolean }>,
+};
+
 // Used only by shell.html.
 const shellAPI = {
     getConfig: () => ipcRenderer.invoke('shell:get-config'),
@@ -100,6 +106,7 @@ if (process.contextIsolated) {
         contextBridge.exposeInMainWorld('account', accountAPI);
         contextBridge.exposeInMainWorld('shell', shellAPI);
         contextBridge.exposeInMainWorld('uiLayout', uiLayoutAPI);
+        contextBridge.exposeInMainWorld('storage', storageAPI);
     } catch (error) {
         console.error(error);
     }
@@ -116,4 +123,6 @@ if (process.contextIsolated) {
     window.shell = shellAPI;
     // @ts-ignore
     window.uiLayout = uiLayoutAPI;
+    // @ts-ignore
+    window.storage = storageAPI;
 }

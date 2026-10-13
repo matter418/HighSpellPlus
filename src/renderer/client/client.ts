@@ -67,6 +67,20 @@ async function obtainGameClient() {
     // Check if clientLastVersion is set
     const clientLastVersion = await highliteResources.getItem('clientLastVersion');
 
+    // No cached client version means the database was just created. On anything but a first
+    // run that means Chromium discarded the store (installed plugins, plugin data, settings);
+    // main offers the latest backup and relaunches if the user takes it.
+    if (clientLastVersion === undefined && window.storage?.offerRestore) {
+        try {
+            const { accepted } = await window.storage.offerRestore();
+            if (accepted) {
+                await new Promise(() => {}); // relaunching; never continue into a fresh install
+            }
+        } catch (e) {
+            console.warn('[Highspell+ Loader] Backup offer failed:', e);
+        }
+    }
+
     // Get Asset JSON to determine latest version
     const highSpellAssetJSON = await fetch(highspellAssetsURL).then(r => r.json());
     const remoteLastVersion = highSpellAssetJSON.data.latestClientVersion;

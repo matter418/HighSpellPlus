@@ -17,6 +17,7 @@ import { app, ipcMain, safeStorage } from 'electron';
 import log from 'electron-log';
 import fs from 'fs';
 import path from 'path';
+import { writeFileAtomicSync } from '../../../../modules/atomicFile';
 
 const getStorePath = () => {
     return path.join(app.getPath('userData'), 'user-passwords.json');
@@ -37,10 +38,7 @@ function loadStore(): Record<string, string> {
 function saveStore(store: Record<string, string>) {
     const storePath = getStorePath();
     try {
-        fs.writeFileSync(storePath, JSON.stringify(store, null, 2), {
-            encoding: 'utf8',
-            mode: 0o600,
-        });
+        writeFileAtomicSync(storePath, JSON.stringify(store, null, 2), 0o600);
     } catch (e) {
         log.error('Failed to save password store:', e);
     }

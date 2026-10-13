@@ -25,6 +25,8 @@ import { allWebContents, resolveWindow } from "../windowRegistry";
 import { BrowserWindow, ipcMain, dialog, app } from "electron";
 import fs from 'fs';
 import path from 'path';
+import log from 'electron-log';
+import { writeFileAtomic, preserveCorruptFile } from '../atomicFile';
 
 // Let every open page (shell, game views, console) react to a saved setting without a restart.
 function broadcastSettingsChanged() {
@@ -67,14 +69,24 @@ class SettingsService {
     }
 
     async load(): Promise<any> {
+        this.ensureDynamicDefaults();
+        let data: string;
         try {
-            this.ensureDynamicDefaults();
-            const data = await fs.promises.readFile(this.settingsPath, 'utf-8');
+            data = await fs.promises.readFile(this.settingsPath, 'utf-8');
+        } catch {
+            // No file yet: defaults.
+            return this.getAll();
+        }
+        try {
             // Load the full schema JSON to preserve structure/validation bindings
             settingsSchema.loadFromJSON(data);
             return JSON.parse(data);
-        } catch {
-            // If file doesn't exist, return defaults
+        } catch (e) {
+            // The file exists but is unreadable (half-written by an interrupted save, or an
+            // old format). Keep a copy beside it rather than silently overwriting the only
+            // record of the user's settings, then fall back to defaults.
+            const kept = preserveCorruptFile(this.settingsPath);
+            log.warn('settings.json could not be parsed; using defaults' + (kept ? ' (copy kept at ' + kept + ')' : '') + ':', e);
             this.ensureDynamicDefaults();
             return this.getAll();
         }
@@ -83,15 +95,13 @@ class SettingsService {
     // Persist the current in-memory schema to disk
     async saveCurrent(): Promise<void> {
         const schemaJson = JSON.stringify((settingsSchema as any).settings, null, 2);
-        await fs.promises.mkdir(path.dirname(this.settingsPath), { recursive: true });
-        await fs.promises.writeFile(this.settingsPath, schemaJson, 'utf-8');
+        await writeFileAtomic(this.settingsPath, schemaJson);
     }
 
     // Save from a full schema JSON string (compat path)
     async saveFromSchemaJSON(schemaJSONString: string): Promise<void> {
         settingsSchema.loadFromJSON(schemaJSONString);
-        await fs.promises.mkdir(path.dirname(this.settingsPath), { recursive: true });
-        await fs.promises.writeFile(this.settingsPath, schemaJSONString, 'utf-8');
+        await writeFileAtomic(this.settingsPath, schemaJSONString);
         broadcastSettingsChanged();
     }
 

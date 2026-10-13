@@ -24,6 +24,7 @@ import log from 'electron-log';
 import fs from 'fs';
 import path from 'path';
 import { allWebContents } from './windowRegistry';
+import { writeFileAtomicSync } from './atomicFile';
 import type { PanelLayout, UiLayoutStore } from '../../shared/shellTypes';
 
 type UiLayout = Record<string, PanelLayout>;
@@ -83,7 +84,7 @@ function sanitize(raw: unknown): UiLayout {
 function save(next: UiLayoutStore) {
     store = next;
     try {
-        fs.writeFileSync(filePath(), JSON.stringify(next, null, 2), 'utf8');
+        writeFileAtomicSync(filePath(), JSON.stringify(next, null, 2));
     } catch (e) {
         log.warn('Failed to save ui-layout.json:', e);
     }

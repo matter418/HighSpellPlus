@@ -50,6 +50,10 @@ declare global {
             set: (scope: string, layout: Record<string, PanelLayout>) => void;
             onChanged: (cb: (store: UiLayoutStore) => void) => void;
         };
+        /** Plugin-storage backups: ask the user to restore when the database came up empty. */
+        storage: {
+            offerRestore: () => Promise<{ offered: boolean; accepted?: boolean }>;
+        };
         /** Only meaningful in shell.html. */
         shell: {
             getConfig: () => Promise<ShellConfig>;

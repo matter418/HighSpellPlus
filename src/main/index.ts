@@ -23,6 +23,7 @@ import log from 'electron-log';
 import registerScreenshotIPC from './modules/screenshotManagement/index';
 import { registerUiLayoutIPC } from './modules/uiLayoutStore';
 import { registerVendorScheme, registerVendorProtocol } from './modules/vendorProtocol';
+import { restoreIfRequested, snapshotIndexedDB, registerStorageBackupIPC } from './modules/storageBackup';
 import fs from 'fs';
 import path from 'path';
 
@@ -54,6 +55,11 @@ registerVendorScheme();
 const gotTheLock = app.requestSingleInstanceLock();
 if (!gotTheLock) {
     app.quit();
+} else {
+    // Plugin-storage safety net (modules/storageBackup): apply a restore the previous run
+    // asked for, then snapshot the storage - both before any window can open the profile.
+    restoreIfRequested();
+    snapshotIndexedDB();
 }
 
 app.whenReady().then(async () => {
@@ -66,6 +72,7 @@ app.whenReady().then(async () => {
 
     registerScreenshotIPC();
     registerUiLayoutIPC();
+    registerStorageBackupIPC();
     ipcMain.once('delay-update', async () => {
         await createClientWindow();
         updateWindow.close();

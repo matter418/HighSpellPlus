@@ -14,7 +14,7 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 import { ElectronAPI } from '@electron-toolkit/preload';
-import type { AccountState, PanelLayout, ShellConfig, ShellState, UiLayoutStore } from '../shared/shellTypes';
+import type { AccountState, StoredPanelLayout, ShellConfig, ShellState, UiLayoutStore } from '../shared/shellTypes';
 
 declare global {
     interface Window {
@@ -49,7 +49,7 @@ declare global {
         uiLayout: {
             get: () => Promise<UiLayoutStore>;
             /** scope: 'shared' or a character name. */
-            set: (scope: string, layout: Record<string, PanelLayout>) => void;
+            set: (scope: string, layout: Record<string, StoredPanelLayout>) => void;
             onChanged: (cb: (store: UiLayoutStore) => void) => void;
         };
         /** Plugin-storage backups: ask the user to restore when the database came up empty. */

@@ -19,9 +19,12 @@
 //   - double-click a panel to reset it.
 // Panels are the game's own absolutely positioned HUD containers and pop-up windows (bank,
 // crafting stations, shop, trade, loot); we only ever add a CSS transform, so the game keeps
-// laying them out as usual and hit-testing follows the transform. The main process stores one shared layout plus one per character; the
-// "Shared Interface Layout" setting picks which one this client edits (see scope()), and every
-// change is pushed live to the other windows and multi-account views.
+// laying them out as usual and hit-testing follows the transform. A layout pins each panel's
+// visible box to the nearest viewport edge (or the centre) per axis with a px gap, and the
+// transform is re-solved from that on every resize, so a corner stays a corner at any window
+// size and one layout fits multibox tiles too. The main process stores one shared layout plus
+// one per character; the "Shared Interface Layout" setting picks which one this client edits
+// (see scope()), and every change is pushed live to the other windows and multi-account views.
 
 import { accountNameFromTitle } from './titlebarHelpers.js';
 
@@ -67,6 +70,15 @@ let enabled = true;
 let modifier = 'Alt';      // 'Alt' | 'Control' | 'Shift'
 let modeActive = false;
 let drag = null;           // active drag/resize gesture
+// The translate+scale currently set on each panel (key → {dx, dy, scale}). Stored layouts are
+// edge/centre-anchored (PanelLayout in shared/shellTypes.ts); this is what they resolve to for
+// the current viewport (solveTransform), and what a drag edits directly.
+const applied = new Map();
+let persistQueued = false;
+
+function appliedOf(p) {
+    return applied.get(p.key) || IDENTITY;
+}
 
 // ---- settings --------------------------------------------------------------------------------
 
@@ -221,7 +233,7 @@ function visibleRect(c, el, clips) {
  * Descendants hidden by an overflow-clipping ancestor (the minimap's map tiles) do not count.
  */
 function naturalBounds(p, el) {
-    const l = activeLayout()[p.key];
+    const l = appliedOf(p);
     let box = naturalBox(el);
     // Pop-up windows are fixed-size `overflow: hidden` boxes: their own box is exactly what is
     // visible, and the bank has hundreds of item cells that would be measured per pointermove.
@@ -245,7 +257,7 @@ function naturalBounds(p, el) {
 /** Screen-space box of the panel's visible bounds under its current transform. */
 function screenBounds(p, el) {
     const nat = naturalBounds(p, el);
-    const l = activeLayout()[p.key];
+    const l = appliedOf(p);
     const tl = mapPoint(p, el, { x: nat.left, y: nat.top }, l);
     const br = mapPoint(p, el, { x: nat.right, y: nat.bottom }, l);
     return { left: tl.x, top: tl.y, right: br.x, bottom: br.y, width: br.x - tl.x, height: br.y - tl.y };
@@ -260,22 +272,99 @@ function containerScale(el) {
     let scale = 1;
     for (const q of PANELS) {
         const qel = panelEl(q);
-        if (qel && qel !== el && qel.contains(el)) scale *= activeLayout()[q.key]?.scale || 1;
+        if (qel && qel !== el && qel.contains(el)) scale *= appliedOf(q).scale;
     }
     return scale;
 }
 
-function applyPanel(p) {
-    const el = panelEl(p);
-    if (!el) return;
-    const l = activeLayout()[p.key];
+/** The area panels are pinned to: the game's screen mask, or the window before it exists. */
+function viewportRect() {
+    const mask = document.getElementById('hs-screen-mask');
+    const r = mask ? mask.getBoundingClientRect() : null;
+    if (r && r.width > 0 && r.height > 0) return r;
+    const w = window.innerWidth, h = window.innerHeight;
+    return { left: 0, top: 0, right: w, bottom: h, width: w, height: h };
+}
+
+/** Screen box of the panel's natural bounds `nat` under transform `t` (mapPoint, as a rect). */
+function boxUnder(p, el, nat, t) {
+    const a = naturalAnchor(p, el);
+    const left = a.x + t.dx + t.scale * (nat.left - a.x);
+    const top = a.y + t.dy + t.scale * (nat.top - a.y);
+    return { left, top, right: left + t.scale * nat.width, bottom: top + t.scale * nat.height };
+}
+
+/** A store entry from before anchoring: a px translate from the game's own placement. */
+function isLegacy(l) {
+    return l.ax === undefined;
+}
+
+/**
+ * The transform that puts the panel where layout `l` says for the CURRENT viewport: the scaled
+ * box sits at the stored gap from its anchor edge (or centre), clamped so the whole panel stays
+ * inside the viewport (top/left win when it cannot fit). This is what makes a layout survive
+ * window resizes and fit multibox tiles: the game pins each panel to one of its own edges, so a
+ * fixed px translate from there drifted with every size change. `applied` must hold the panel's
+ * current transform (naturalBounds maps the descendants back through it).
+ */
+function solveTransform(p, el, l) {
+    const vp = viewportRect();
+    const nat = naturalBounds(p, el);
+    const a = naturalAnchor(p, el);
+    const s = l.scale;
+    const w = s * nat.width, h = s * nat.height;
+    let left = l.ax === 'left' ? vp.left + l.ox
+        : l.ax === 'right' ? vp.right - l.ox - w
+        : vp.left + vp.width / 2 + l.ox - w / 2;
+    let top = l.ay === 'top' ? vp.top + l.oy
+        : l.ay === 'bottom' ? vp.bottom - l.oy - h
+        : vp.top + vp.height / 2 + l.oy - h / 2;
+    left = Math.max(vp.left, Math.min(left, vp.right - w));
+    top = Math.max(vp.top, Math.min(top, vp.bottom - h));
+    return { dx: left - a.x - s * (nat.left - a.x), dy: top - a.y - s * (nat.top - a.y), scale: s };
+}
+
+/**
+ * The anchored layout for where transform `t` has put the panel: per axis, whichever of the
+ * viewport's two edges and its centre is nearest, with the gap to it. `t` must be applied.
+ */
+function toAnchored(p, el, t) {
+    const vp = viewportRect();
+    const box = boxUnder(p, el, naturalBounds(p, el), t);
+    const dl = box.left - vp.left, dr = vp.right - box.right;
+    const dcx = (box.left + box.right) / 2 - (vp.left + vp.width / 2);
+    const dt = box.top - vp.top, db = vp.bottom - box.bottom;
+    const dcy = (box.top + box.bottom) / 2 - (vp.top + vp.height / 2);
+    const nearest = (c, lo, hi, lon, hin) =>
+        Math.abs(c) <= Math.min(Math.abs(lo), Math.abs(hi)) ? ['center', c]
+            : Math.abs(lo) <= Math.abs(hi) ? [lon, lo] : [hin, hi];
+    const [ax, ox] = nearest(dcx, dl, dr, 'left', 'right');
+    const [ay, oy] = nearest(dcy, dt, db, 'top', 'bottom');
+    const r = v => Math.round(v * 100) / 100;
+    return { ax, ox: r(ox), ay, oy: r(oy), scale: t.scale };
+}
+
+function schedulePersist() {
+    if (persistQueued) return;
+    persistQueued = true;
+    setTimeout(() => {
+        persistQueued = false;
+        persist();
+    }, 0);
+}
+
+/** Set translate+scale `t` (null = none) on the panel and its followers, and remember it. */
+function applyTransform(p, el, t) {
     const base = p.window ? centring(el) : '';
     el.style.transformOrigin = p.anchor;
-    el.style.transform = transformFor(l, base);
+    el.style.transform = transformFor(t, base);
     el.dataset.hsplusPanel = p.key;
     // checkPanels re-applies when the game switches a window between class centring and
-    // explicit left/top (it does so on resize), because the base translate is baked in above.
+    // explicit left/top (it does so on resize), because the base translate is baked in above,
+    // and when the game changes the panel's own size (its gap is measured on the whole box).
     if (p.window) el.dataset.hsplusBase = base;
+    el.dataset.hsplusNat = `${el.offsetWidth}x${el.offsetHeight}`;
+    if (t) applied.set(p.key, t); else applied.delete(p.key);
 
     // Followers get the same translate+scale, but scaled about the LEADER's anchor point
     // (expressed in their own box), so they stay rigidly attached while the leader resizes.
@@ -294,10 +383,39 @@ function applyPanel(p) {
             }
             const fr = naturalBox(f);
             f.style.transformOrigin = `${anchor.x - fr.left}px ${anchor.y - fr.top}px`;
-            f.style.transform = transformFor(l);
+            f.style.transform = transformFor(t);
             f.dataset.hsplusFollower = p.key;
         }
     }
+}
+
+/** Put the panel where the active layout says (resolving it for the current viewport). */
+function applyPanel(p) {
+    const el = panelEl(p);
+    if (!el) return;
+    // An element we have not stamped carries none of our transform (the game re-created it).
+    if (el.dataset.hsplusPanel !== p.key) applied.delete(p.key);
+    const layout = activeLayout();
+    let l = layout[p.key];
+    if (!l) {
+        applyTransform(p, el, null);
+        return;
+    }
+    if (el.offsetWidth === 0 || el.offsetHeight === 0) {
+        // Hidden (the minimap collapsed, say): nothing to solve against. checkPanels re-applies
+        // when it shows, because its size stamp changes.
+        el.dataset.hsplusPanel = p.key;
+        el.dataset.hsplusNat = '0x0';
+        return;
+    }
+    if (isLegacy(l)) {
+        // Pre-anchoring entry: put the panel where it used to be, read its anchoring off that,
+        // and save the converted entry (once per panel and scope).
+        applyTransform(p, el, { dx: l.dx, dy: l.dy, scale: l.scale });
+        l = layout[p.key] = toAnchored(p, el, appliedOf(p));
+        schedulePersist();
+    }
+    applyTransform(p, el, solveTransform(p, el, l));
 }
 
 function applyAll() {
@@ -434,7 +552,7 @@ function onPointerDown(e) {
     e.preventDefault();
     e.stopImmediatePropagation(); // the game must not see this as a click/walk/use
 
-    const current = activeLayout()[p.key] || IDENTITY;
+    const current = appliedOf(p);
     const ps = containerScale(el); // >1 when this panel sits inside a scaled-up panel
 
     if (handle) {
@@ -470,8 +588,9 @@ function onPointerMove(e) {
     e.preventDefault();
     e.stopImmediatePropagation();
     const { p, start } = drag;
+    let t;
     if (drag.kind === 'move') {
-        activeLayout()[p.key] = {
+        t = {
             ...start,
             dx: start.dx + (e.clientX - drag.x0) / drag.ps,
             dy: start.dy + (e.clientY - drag.y0) / drag.ps,
@@ -486,19 +605,19 @@ function onPointerMove(e) {
         const scale = Math.min(MAX_SCALE, Math.max(MIN_SCALE, Number.isFinite(raw) ? raw : start.scale));
         // Opposite corner on screen = anchor + T + scale * lever; solve T so it stays put.
         const ds = start.scale - scale;
-        activeLayout()[p.key] = {
+        t = {
             dx: start.dx + ds * drag.lever.x,
             dy: start.dy + ds * drag.lever.y,
             scale,
         };
     }
-    applyPanel(p);
+    applyTransform(p, drag.el, t);
     // Only the dragged panel moved; measuring all eight (chat has hundreds of nodes) per
     // pointermove is what made dragging stutter.
     if (modeActive) positionPanelHandles(p, drag.el, handleItems(p));
 }
 
-function sameLayout(a, b) {
+function sameTransform(a, b) {
     return a.dx === b.dx && a.dy === b.dy && a.scale === b.scale;
 }
 
@@ -511,20 +630,26 @@ function endDrag() {
     window.removeEventListener('pointerup', onPointerUp, true);
     window.removeEventListener('pointercancel', onPointerUp, true);
 
-    const key = finished.p.key;
-    const edited = activeLayout()[key];
+    const { p, el } = finished;
+    const key = p.key;
+    // A modifier+double-click fires two zero-delta moves before the reset; nothing to save.
+    const changed = !sameTransform(appliedOf(p), finished.start);
+    // Pin where it landed to the nearest edges/centre. Re-applying then clamps it back into the
+    // viewport, so a panel dropped half off-screen snaps back in on release.
+    if (changed && el.isConnected) activeLayout()[key] = toAnchored(p, el, appliedOf(p));
     if (pendingStore) {
         // Another window wrote while we were dragging: take its store, keep our panel's edit.
+        const edited = activeLayout()[key];
         store = pendingStore;
         pendingStore = null;
         if (edited) activeLayout()[key] = edited;
         else delete activeLayout()[key];
         applyAll();
     } else {
+        applyPanel(p);
         positionHandles();
     }
-    // A modifier+double-click fires two zero-delta moves before the reset; nothing to save.
-    if (!sameLayout(edited || IDENTITY, finished.start)) persist();
+    if (changed) persist();
 }
 
 function onPointerUp(e) {
@@ -628,6 +753,7 @@ export function initUiLayout() {
             if (!el) continue;
             present += p.key + ' ';
             const unstamped = el.dataset.hsplusPanel !== p.key ||
+                el.dataset.hsplusNat !== `${el.offsetWidth}x${el.offsetHeight}` ||
                 (p.window && el.dataset.hsplusBase !== centring(el)) ||
                 (p.followers || []).some(sel => {
                     const f = document.querySelector(sel);
@@ -655,7 +781,17 @@ export function initUiLayout() {
             requestAnimationFrame(checkPanels);
         }
     });
-    window.addEventListener('resize', positionHandles);
+    // Panels are pinned to viewport edges, so a resize re-solves every transform (once per
+    // frame: the event fires continuously while the window edge is being dragged).
+    let resizeQueued = false;
+    window.addEventListener('resize', () => {
+        if (resizeQueued) return;
+        resizeQueued = true;
+        requestAnimationFrame(() => {
+            resizeQueued = false;
+            applyAll();
+        });
+    });
     // `class` is watched for the windows' centring classes (chat and nameplates churn classes
     // too, but the check is coalesced to one per frame and only re-applies what changed).
     observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['class'] });

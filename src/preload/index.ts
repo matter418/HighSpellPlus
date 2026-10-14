@@ -16,7 +16,7 @@
 
 import { contextBridge, ipcRenderer } from 'electron';
 import { electronAPI } from '@electron-toolkit/preload';
-import type { AccountState, PanelLayout, ShellState, UiLayoutStore } from '../shared/shellTypes';
+import type { AccountState, StoredPanelLayout, ShellState, UiLayoutStore } from '../shared/shellTypes';
 
 const settingsAPI = {
     get: async (section: string, key: string) => ipcRenderer.invoke('settings:get', section, key),
@@ -60,7 +60,7 @@ const accountAPI = {
 const uiLayoutAPI = {
     get: () => ipcRenderer.invoke('ui-layout:get') as Promise<UiLayoutStore>,
     /** scope: 'shared' or a character name. */
-    set: (scope: string, layout: Record<string, PanelLayout>) => ipcRenderer.send('ui-layout:set', scope, layout),
+    set: (scope: string, layout: Record<string, StoredPanelLayout>) => ipcRenderer.send('ui-layout:set', scope, layout),
     onChanged: (cb: (store: UiLayoutStore) => void) => {
         ipcRenderer.on('ui-layout:changed', (_e, store: UiLayoutStore) => cb(store));
     },

@@ -53,15 +53,36 @@ export interface ShellConfig {
     max: number;
 }
 
-/** One movable HUD panel's offset (px) and scale, as stored by uiLayoutStore. */
+/**
+ * One movable HUD panel, as stored by uiLayoutStore. The panel's visible box is pinned per
+ * axis to the nearest viewport edge or the centre, with a px gap: `ax: 'left'` → box.left =
+ * viewport.left + ox; `'right'` → box.right = viewport.right − ox; `'center'` → box centre =
+ * viewport centre + ox (same for y with top/bottom). The gap is measured on the scaled box, so
+ * the layout survives window resizes and fits multibox tiles of any size.
+ */
 export interface PanelLayout {
+    ax: 'left' | 'center' | 'right';
+    ox: number;
+    ay: 'top' | 'center' | 'bottom';
+    oy: number;
+    scale: number;
+}
+
+/**
+ * Pre-2026-10-14 entry: a px translate from wherever the game itself places the panel. Kept
+ * readable so existing files load; the client converts one to a PanelLayout the first time the
+ * panel is on screen (it needs the panel's size and the viewport to do so) and saves it back.
+ */
+export interface LegacyPanelLayout {
     dx: number;
     dy: number;
     scale: number;
 }
 
+export type StoredPanelLayout = PanelLayout | LegacyPanelLayout;
+
 /** Everything in userData/ui-layout.json: the shared layout plus one per character name. */
 export interface UiLayoutStore {
-    shared: Record<string, PanelLayout>;
-    accounts: Record<string, Record<string, PanelLayout>>;
+    shared: Record<string, StoredPanelLayout>;
+    accounts: Record<string, Record<string, StoredPanelLayout>>;
 }

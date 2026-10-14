@@ -25,9 +25,9 @@ import fs from 'fs';
 import path from 'path';
 import { allWebContents } from './windowRegistry';
 import { writeFileAtomicSync } from './atomicFile';
-import type { PanelLayout, UiLayoutStore } from '../../shared/shellTypes';
+import type { StoredPanelLayout, UiLayoutStore } from '../../shared/shellTypes';
 
-type UiLayout = Record<string, PanelLayout>;
+type UiLayout = Record<string, StoredPanelLayout>;
 
 // Panel keys are the `key:` values of the PANELS table in renderer/client/helpers/uiLayout.js;
 // account names are character names taken from the window title.
@@ -69,14 +69,28 @@ function sanitizeStore(raw: any): UiLayoutStore {
     return { shared: sanitize(raw), accounts: {} };
 }
 
+const X_ANCHORS = ['left', 'center', 'right'] as const;
+const Y_ANCHORS = ['top', 'center', 'bottom'] as const;
+
 function sanitize(raw: unknown): UiLayout {
     const out: UiLayout = {};
     if (!raw || typeof raw !== 'object') return out;
     for (const [key, v] of Object.entries(raw as Record<string, any>)) {
         if (!PANEL_KEY.test(key) || !v || typeof v !== 'object') continue;
-        const dx = Number(v.dx), dy = Number(v.dy), scale = Number(v.scale);
-        if (![dx, dy, scale].every(Number.isFinite)) continue;
-        out[key] = { dx, dy, scale: Math.min(MAX_SCALE, Math.max(MIN_SCALE, scale)) };
+        const rawScale = Number(v.scale);
+        if (!Number.isFinite(rawScale)) continue;
+        const scale = Math.min(MAX_SCALE, Math.max(MIN_SCALE, rawScale));
+        if ('ax' in v || 'ay' in v) {
+            // Edge/centre-anchored entry (see PanelLayout in shellTypes.ts).
+            const ox = Number(v.ox), oy = Number(v.oy);
+            if (!X_ANCHORS.includes(v.ax) || !Y_ANCHORS.includes(v.ay) || ![ox, oy].every(Number.isFinite)) continue;
+            out[key] = { ax: v.ax, ox, ay: v.ay, oy, scale };
+        } else {
+            // Legacy px-translate entry; the client migrates it once the panel is on screen.
+            const dx = Number(v.dx), dy = Number(v.dy);
+            if (![dx, dy].every(Number.isFinite)) continue;
+            out[key] = { dx, dy, scale };
+        }
     }
     return out;
 }

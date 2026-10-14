@@ -17,9 +17,9 @@
 //   - drag a panel to move it,
 //   - drag one of the four corner squares to scale it,
 //   - double-click a panel to reset it.
-// Panels are the game's own absolutely positioned HUD containers; we only ever add a CSS
-// transform, so the game keeps laying them out as usual and hit-testing follows the
-// transform. The main process stores one shared layout plus one per character; the
+// Panels are the game's own absolutely positioned HUD containers and pop-up windows (bank,
+// crafting stations, shop, trade, loot); we only ever add a CSS transform, so the game keeps
+// laying them out as usual and hit-testing follows the transform. The main process stores one shared layout plus one per character; the
 // "Shared Interface Layout" setting picks which one this client edits (see scope()), and every
 // change is pushed live to the other windows and multi-account views.
 
@@ -40,6 +40,15 @@ const PANELS = [
     // The inventory/skills window and its tab bar share a container; they move separately.
     { key: 'inventory', selector: '#hs-game-menu-container',             anchor: 'bottom right' },
     { key: 'menubar',   selector: '#hs-game-menu-bar-section-container .hs-game-menu-bar', anchor: 'bottom right' },
+    // Pop-up windows. The game appends these to the screen mask when opened and removes them
+    // on close, and centres them itself (see centring()); they scale about their centre. One
+    // layout per window: the five crafting stations (crafting table, potion making, smithing,
+    // smelting, kiln) share the create-items window and only the header title differs.
+    { key: 'bank',   selector: '#hs-bank-menu',         anchor: 'center', window: true },
+    { key: 'create', selector: '.hs-create-items-menu', anchor: 'center', window: true },
+    { key: 'shop',   selector: '#hs-shop-menu',         anchor: 'center', window: true },
+    { key: 'trade',  selector: '#hs-trade-menu',        anchor: 'center', window: true },
+    { key: 'loot',   selector: '#hs-loot-menu',         anchor: 'center', window: true },
 ];
 
 const MIN_SCALE = 0.5;
@@ -115,8 +124,24 @@ function panelEl(p) {
     return document.querySelector(p.selector);
 }
 
-function transformFor(l) {
-    return l ? `translate(${l.dx}px, ${l.dy}px) scale(${l.scale})` : '';
+/**
+ * How the game centres a pop-up window right now. Above 1200×800 it adds the
+ * `hs-center-menu--*-centered` classes, whose CSS is `left/top: 50%` plus a `translate(-50%)`
+ * transform; below that (a multibox tile) it sets explicit left/top instead and the classes are
+ * absent. It re-decides on every resize. Our inline transform replaces the CSS one, so the
+ * -50% translate has to be carried in it (transformFor) and taken out of the layout box
+ * (naturalBox). Returns '' for everything that is not centred this way.
+ */
+function centring(el) {
+    const cl = el.classList;
+    return (cl.contains('hs-center-menu--horizontally-centered') ? 'x' : '') +
+        (cl.contains('hs-center-menu--vertically-centered') ? 'y' : '');
+}
+
+function transformFor(l, base = '') {
+    if (!l) return ''; // no layout: the game's own CSS transform (if any) applies again
+    const centre = base ? `translate(${base.includes('x') ? -50 : 0}%, ${base.includes('y') ? -50 : 0}%) ` : '';
+    return `${centre}translate(${l.dx}px, ${l.dy}px) scale(${l.scale})`;
 }
 
 /**
@@ -128,12 +153,16 @@ function transformFor(l) {
 function naturalBox(el) {
     const parent = el.offsetParent || document.documentElement;
     const pr = parent.getBoundingClientRect();
-    const left = pr.left + el.offsetLeft;
-    const top = pr.top + el.offsetTop;
+    // A game-centred window's layout box starts at 50%; its own -50% translate (which we keep
+    // in front of our transform) is part of where the user sees it, so it counts as natural.
+    const base = centring(el);
+    const left = pr.left + el.offsetLeft - (base.includes('x') ? el.offsetWidth / 2 : 0);
+    const top = pr.top + el.offsetTop - (base.includes('y') ? el.offsetHeight / 2 : 0);
     return { left, top, right: left + el.offsetWidth, bottom: top + el.offsetHeight, width: el.offsetWidth, height: el.offsetHeight };
 }
 
 function cornerPoint(r, corner) {
+    if (corner === 'center') return { x: (r.left + r.right) / 2, y: (r.top + r.bottom) / 2 };
     const [cy, cx] = corner.split(' ');
     return { x: cx === 'right' ? r.right : r.left, y: cy === 'bottom' ? r.bottom : r.top };
 }
@@ -194,6 +223,9 @@ function visibleRect(c, el, clips) {
 function naturalBounds(p, el) {
     const l = activeLayout()[p.key];
     let box = naturalBox(el);
+    // Pop-up windows are fixed-size `overflow: hidden` boxes: their own box is exactly what is
+    // visible, and the bank has hundreds of item cells that would be measured per pointermove.
+    if (p.window) return box;
     let { left, top, right, bottom } = box;
     const clips = new Map();
     for (const c of el.querySelectorAll('*')) {
@@ -237,9 +269,13 @@ function applyPanel(p) {
     const el = panelEl(p);
     if (!el) return;
     const l = activeLayout()[p.key];
+    const base = p.window ? centring(el) : '';
     el.style.transformOrigin = p.anchor;
-    el.style.transform = transformFor(l);
+    el.style.transform = transformFor(l, base);
     el.dataset.hsplusPanel = p.key;
+    // checkPanels re-applies when the game switches a window between class centring and
+    // explicit left/top (it does so on resize), because the base translate is baked in above.
+    if (p.window) el.dataset.hsplusBase = base;
 
     // Followers get the same translate+scale, but scaled about the LEADER's anchor point
     // (expressed in their own box), so they stay rigidly attached while the leader resizes.
@@ -582,13 +618,17 @@ export function initUiLayout() {
     // when they are toggled; re-apply to any element we have not stamped yet. Chat and nameplates
     // mutate constantly, so the check runs at most once per frame.
     let queued = false;
+    let lastPresent = '';
     const checkPanels = () => {
         queued = false;
         let fresh = false;
+        let present = '';
         for (const p of PANELS) {
             const el = panelEl(p);
             if (!el) continue;
+            present += p.key + ' ';
             const unstamped = el.dataset.hsplusPanel !== p.key ||
+                (p.window && el.dataset.hsplusBase !== centring(el)) ||
                 (p.followers || []).some(sel => {
                     const f = document.querySelector(sel);
                     return f && f.dataset.hsplusFollower !== p.key;
@@ -599,7 +639,10 @@ export function initUiLayout() {
                 fresh = true;
             }
         }
-        if (fresh && modeActive) {
+        // A pop-up window closed while editing: its frame must not stay frozen on screen.
+        const closed = present !== lastPresent;
+        lastPresent = present;
+        if ((fresh || closed) && modeActive) {
             // The mask itself may have been re-created by the game along with the panel.
             const mask = document.querySelector('#hs-screen-mask');
             if (mask) mask.classList.add(MODE_CLASS);
@@ -613,7 +656,9 @@ export function initUiLayout() {
         }
     });
     window.addEventListener('resize', positionHandles);
-    observer.observe(document.body, { childList: true, subtree: true });
+    // `class` is watched for the windows' centring classes (chat and nameplates churn classes
+    // too, but the check is coalesced to one per frame and only re-applies what changed).
+    observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['class'] });
 
     window.addEventListener('pointerdown', onPointerDown, true);
     window.addEventListener('dblclick', onDoubleClick, true);

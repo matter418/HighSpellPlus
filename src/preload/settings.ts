@@ -153,7 +153,7 @@ export class settingsSchema extends SettingsSchema {
                 {
                     label: "Movable Interface",
                     type: SettingTypes.BOOLEAN,
-                    description: "Hold the modifier key and drag the minimap (its minimize button follows it), compass, logout button, action bars, chat, inventory window or its tab bar to move it; drag a corner square to resize it; double-click to reset it. The layout is remembered between sessions.",
+                    description: "Hold the modifier key and drag the minimap (its minimize button follows it), compass, logout button, action bars, chat, inventory window or its tab bar to move it; drag a corner square to resize it; double-click to reset it. The bank, crafting-station, shop, trade and loot windows work the same way while they are open. The layout is remembered between sessions.",
                     default: true
                 } as Field,
                 {

@@ -17,6 +17,18 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
    with CSS outline on the element, because some containers are far smaller than their contents.
    --theme-accent comes from index.css (imported by client.ts); the #f9f449 fallbacks mirror it. */
 
+/* pointer-events: the Nameplates plugin sets an inline `pointer-events: none` on
+   #hs-screen-mask for as long as Alt is held (so Alt+clicks reach its priority/ignore buttons).
+   Every panel is a child of that mask and inherits it, so a modifier+press on a panel body
+   hit-tested through to the canvas: uiLayout's pointerdown found no panel, the game got the
+   click, and the drag never started. (Corner handles live in the fixed overlay outside the
+   mask, which is why resizing kept working.) Panels and followers opt back in while edit mode
+   is on; the mask itself is left alone so Nameplates' Alt+click still works elsewhere. */
+.hsplus-layout-mode [data-hsplus-panel],
+.hsplus-layout-mode [data-hsplus-follower] {
+    pointer-events: auto;
+}
+
 .hsplus-layout-mode [data-hsplus-panel] {
     cursor: move;
 }

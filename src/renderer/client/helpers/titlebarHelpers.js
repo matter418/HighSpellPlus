@@ -19,6 +19,12 @@ const embedded = Boolean(window.account?.embedded);
 if (embedded) {
     const bar = document.querySelector('.highlite_titlebar');
     if (bar) bar.remove();
+    // index.css sets --titlebar-height: 28px on :root, and plugins (Nameplates, Entity
+    // Highlighter) size their canvas overlays as `top: var(--titlebar-height); height: calc(100%
+    // - var(--titlebar-height))`. With the bar gone the game canvas starts at y=0, so the
+    // variable must follow or every overlay sits 28px low (ground-item plates drawn over the item
+    // instead of above it) and `overflow: hidden` clips plates near the top of the view.
+    document.documentElement.style.setProperty('--titlebar-height', '0px');
 }
 
 const warningIndicator = document.querySelector('#warningIndicator');

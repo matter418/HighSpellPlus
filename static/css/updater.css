@@ -183,6 +183,19 @@ body {
     max-height: 180px;
     overflow: auto;
 }
+/* Full changelog: one block per release newer than the installed version, newest first. */
+.release-notes .release + .release {
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid var(--theme-border);
+}
+.release-notes .release__version {
+    margin: 0 0 6px;
+    font-size: 13px;
+    font-weight: 600;
+}
+.release-notes .release__notes > :first-child { margin-top: 0; }
+.release-notes .release__notes > :last-child { margin-bottom: 0; }
 
 /* Actions */
 .actions {

@@ -50,6 +50,36 @@ window.electron.ipcRenderer.on('update-downloaded', _ => {
     btnUpdateLater.style.display = 'none';
 });
 
+/**
+ * Fill the release-notes card. With autoUpdater.fullChangelog on (main process) the GitHub
+ * provider sends an array of { version, note } for every release newer than the installed one,
+ * newest first; each gets its own block with a version heading. A plain string (the provider's
+ * default shape) is still shown as-is. The notes are the HTML GitHub renders for our own
+ * releases' Markdown bodies.
+ */
+function renderReleaseNotes(notes: unknown): void {
+    releaseNotes.replaceChildren();
+    if (Array.isArray(notes)) {
+        for (const entry of notes as { version?: string; note?: string | null }[]) {
+            const block = document.createElement('section');
+            block.className = 'release';
+            const heading = document.createElement('h3');
+            heading.className = 'release__version';
+            heading.textContent = entry.version ? `v${entry.version}` : 'Release';
+            const body = document.createElement('div');
+            body.className = 'release__notes';
+            body.innerHTML = entry.note ?? '';
+            block.append(heading, body);
+            releaseNotes.appendChild(block);
+        }
+    } else if (typeof notes === 'string') {
+        releaseNotes.innerHTML = notes;
+    }
+    if (!releaseNotes.childElementCount) {
+        releaseNotes.textContent = 'No release notes for this update.';
+    }
+}
+
 window.electron.ipcRenderer.on('update-available', (_, releaseInfo) => {
     updateStatus.textContent = 'Update to ' + releaseInfo.releaseName + ' Available!';
     progressLoader.style.visibility = 'hidden';
@@ -57,7 +87,7 @@ window.electron.ipcRenderer.on('update-available', (_, releaseInfo) => {
     btnUpdateLater.style.display = 'block';
     // Show release notes section (block layout in mobile, grid/column later)
     sectionUpdateChange.style.display = 'block';
-    releaseNotes.innerHTML = releaseInfo.releaseNotes;
+    renderReleaseNotes(releaseInfo.releaseNotes);
 });
 
 // When updateNow is clicked, send the install-update event to the main process

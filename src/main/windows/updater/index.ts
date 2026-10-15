@@ -21,6 +21,10 @@ import { settingsService } from '../../modules/settingsManagement';
 
 async function configureAutoUpdater() {
     autoUpdater.autoDownload = false; // Disable auto download to control it manually
+    // Release notes for every release newer than the installed version (newest first), not just
+    // the latest one, so someone skipping a version still sees what changed in between. With
+    // this on, updateInfo.releaseNotes is an array of { version, note } (see the renderer).
+    autoUpdater.fullChangelog = true;
     await settingsService.load();
 
     if (settingsService.getByName('Release Channel') == 'Beta') {

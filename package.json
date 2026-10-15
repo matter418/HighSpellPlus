@@ -5,7 +5,7 @@
   "description": "Highspell+ — a RuneLite-esque client for the game High Spell (fork of RyeLite)",
   "homepage": "https://github.com/matter418/HighSpellPlus#readme",
   "engines": {
-    "node": "^22.x.x"
+    "node": ">=22"
   },
   "bugs": {
     "url": "https://github.com/matter418/HighSpellPlus/issues"

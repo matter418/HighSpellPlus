@@ -60,6 +60,7 @@ const MODE_CLASS = 'hsplus-layout-mode';
 const HANDLE_CLASS = 'hsplus-layout-handle';
 const FRAME_CLASS = 'hsplus-layout-frame';
 const OVERLAY_ID = 'hsplus-layout-overlay';
+const OVERLAY_ACTIVE_CLASS = 'hsplus-layout-overlay--active';
 const CORNERS = ['nw', 'ne', 'sw', 'se'];
 const IDENTITY = Object.freeze({ dx: 0, dy: 0, scale: 1 });
 
@@ -509,7 +510,9 @@ function setMode(on) {
     const mask = document.querySelector('#hs-screen-mask');
     if (mask) mask.classList.toggle(MODE_CLASS, on);
     const o = overlay();
-    o.classList.toggle('active', on);
+    // Namespaced on purpose: a bare "active" class gets painted by plugins' unscoped `.active`
+    // rules (Bank Tabs fills it light gray, graying the whole screen while the modifier is held).
+    o.classList.toggle(OVERLAY_ACTIVE_CLASS, on);
     if (on) {
         for (const p of PANELS) {
             if (panelEl(p)) {

@@ -59,7 +59,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
     pointer-events: none;
     display: none;
 }
-#hsplus-layout-overlay.active {
+#hsplus-layout-overlay.hsplus-layout-overlay--active {
     display: block;
 }
 

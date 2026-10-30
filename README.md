@@ -36,8 +36,8 @@ Highspell+ is packaged as an Electron application and provides [Linux](#Linux), 
 > Highspell+ is currently unsigned, because code-signing certificates are expensive. Windows SmartScreen will warn when you run the installer: click 'More info' and then 'Run anyway'.
 
 ## Linux
-1. Obtain the .AppImage file from the [latest release](https://github.com/matter418/HighSpellPlus/releases/latest)
-2. Execute the AppImage
+1. Obtain the .AppImage file from the [latest release](https://github.com/matter418/HighSpellPlus/releases/latest): `-x86_64` for a regular PC or Steam Deck, `-arm64` for ARM devices
+2. Mark it executable (right-click → Properties → Permissions, or `chmod +x`) and run it
 3. You will be prompted by the game client when launching to automatically install any future updates!
 ## MacOS
 > [!CAUTION]

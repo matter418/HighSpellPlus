@@ -79,7 +79,8 @@
           ]
         }
       ],
-      "icon": "build/icon.png"
+      "icon": "build/icon.png",
+      "artifactName": "HighspellPlus-${version}-${arch}.${ext}"
     },
     "nsis": {
       "artifactName": "HighspellPlus-Setup-${version}.${ext}",

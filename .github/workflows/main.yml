@@ -108,6 +108,20 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       
+      # Both Linux arches used to share one file name, so the arm64 AppImage silently
+      # replaced the x64 one in every release. Fail here if the x64 build is not x86-64.
+      - name: Check AppImage architectures
+        if: ${{ runner.os == 'Linux' && !env.ACT }}
+        run: |
+          set -e
+          ls -l dist/*.AppImage
+          for f in dist/*-x86_64.AppImage; do
+            file "$f" | grep -q 'x86-64' || { echo "::error::$f is not an x86-64 binary"; exit 1; }
+          done
+          for f in dist/*-arm64.AppImage; do
+            file "$f" | grep -q 'aarch64' || { echo "::error::$f is not an aarch64 binary"; exit 1; }
+          done
+
       - name: Upload Artifact
         uses: actions/upload-artifact@v7
         if: ${{ !env.ACT }}
@@ -203,5 +217,6 @@ jobs:
           echo "--- Expected Asset Names ---"
           echo "Windows: HighspellPlus-Setup-${{ needs.get_version.outputs.full_version }}.exe"
           echo "macOS: HighspellPlus-${{ needs.get_version.outputs.full_version }}.dmg"
-          echo "Linux: HighspellPlus-${{ needs.get_version.outputs.full_version }}.AppImage"
+          echo "Linux x64: HighspellPlus-${{ needs.get_version.outputs.full_version }}-x86_64.AppImage"
+          echo "Linux arm64: HighspellPlus-${{ needs.get_version.outputs.full_version }}-arm64.AppImage"
           echo "--- NOTE: Actual file paths depend on local build output in 'dist/' ---"

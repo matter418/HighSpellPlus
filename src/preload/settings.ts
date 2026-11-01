@@ -283,15 +283,8 @@ export class settingsSchema extends SettingsSchema {
                 {
                     label: "Logout Warning",
                     type: SettingTypes.BOOLEAN,
-                    description: "HighSpell logs a character out after 15 minutes without doing anything. Play a sound and show a banner shortly before that happens (every account, with or without multi-account). Any action clears it.",
+                    description: "When the game says in chat that you are about to be logged out for inactivity (a minute before it happens, e.g. 14 minutes into an AFK fight), play a sound, show a banner in the game view and flag the account's tab. Easy to miss on a background account otherwise. Doing anything in game clears it.",
                     default: true
-                } as Field,
-                {
-                    label: "Logout Warning After (minutes)",
-                    type: SettingTypes.NUMBER,
-                    description: "How long the character must have been doing nothing before the warning. 14 gives you about a minute.",
-                    default: 14,
-                    validation: (value) => Number(value) >= 1 && Number(value) <= 60,
                 } as Field,
                 {
                     label: "Logout Warning Sound",

@@ -13,34 +13,48 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-// Logout warning. The HighSpell server logs a character out after 15 minutes without an
-// action. This polls the main player like idleWatch.js does and, once the character has done
-// nothing for the configured number of minutes (default 14), plays a sound, shows a banner in
-// the view and, inside the multi-account shell, flags the account's tab ("Logging out soon!").
-// Any action (a skill, combat, walking, banking…) resets the clock and clears the warning.
-// Runs in every game view, single-window or shell. Needs `document.highlite.gameHooks`, so
-// client.ts starts it only when plugins are enabled (same as the idle watch).
+// Logout warning. A minute before the server logs an inactive character out (about 14 minutes
+// into, say, an AFK fight that needs no input) the game posts a system line in chat along the
+// lines of "You are about to be logged out in 1 minute". Easy to miss on a background tab or
+// another window, so this watches the public chat list for that line and, when it appears,
+// plays a sound, shows a banner in the view and, inside the multi-account shell, flags the
+// account's tab ("Logging out soon!"). The cue clears when the character does something, when
+// the character is gone (logged out), or after a while on its own.
+// Needs `document.highlite.gameHooks` for the activity check, so client.ts starts it only when
+// plugins are enabled (same as the idle watch).
 
 import { ActionState } from '@ryelite/core';
 import { playAlertSound } from '../../shared/alertSounds';
 
+// The game's chat DOM (same ids Chat+ hooks into).
+const PUBLIC_LIST_ID = 'hs-public-message-list__container';
+const MESSAGE_SELECTOR = '.hs-chat-message-container';
+// Lines the game colours as a chat channel carry one of these; a system line carries none. The
+// match is limited to system lines so a player typing "logged out in 1 minute" cannot trigger it.
+const CHANNEL_CLASSES = ['hs-text--orange', 'hs-text--yellow', 'hs-text--cyan'];
+// Wording is matched loosely (the exact server text is not pinned down): something about being
+// logged out, with a time or inactivity in the same line.
+const LOGOUT_RE = /\blog(?:ged)?\s*out\b/i;
+const SOON_RE = /\b(?:\d+|one|a)\s*(?:minute|min|second|sec)|inactiv|idle/i;
+
 // One poll ≈ one game tick (the game loop runs a 600ms TIMESTEP accumulator).
 const POLL_MS = 600;
+// The warning clears by itself after this long if nothing else cleared it (the logout happens
+// about a minute after the message).
+const AUTO_CLEAR_MS = 90_000;
 const BANNER_ID = 'hsplus-logout-warning';
 
-// Defaults must match the Alerts schema in src/preload/settings.ts (on, 14 min, Alarm, 60 %).
-const settings = { enabled: true, minutes: 14, sound: 'Alarm', volume: 60 };
+// Defaults must match the Alerts schema in src/preload/settings.ts (on, Alarm, 60 %).
+const settings = { enabled: true, sound: 'Alarm', volume: 60 };
 
 async function loadSettings() {
     try {
-        const [enabled, minutes, sound, volume] = await Promise.all([
+        const [enabled, sound, volume] = await Promise.all([
             window.settings.get('Alerts', 'Logout Warning'),
-            window.settings.get('Alerts', 'Logout Warning After (minutes)'),
             window.settings.get('Alerts', 'Logout Warning Sound'),
             window.settings.get('Alerts', 'Logout Warning Volume (%)'),
         ]);
         settings.enabled = enabled !== false;
-        settings.minutes = Math.min(60, Math.max(1, Number(minutes) || 14));
         settings.sound = typeof sound === 'string' ? sound : 'Alarm';
         settings.volume = typeof volume === 'number' && Number.isFinite(volume) ? volume : 60;
     } catch {
@@ -61,16 +75,18 @@ function banner() {
     return b;
 }
 
-function showBanner(idleMinutes) {
-    const left = Math.max(0, Math.round(15 - idleMinutes));
-    const text = left <= 1 ? 'about a minute' : `about ${left} minutes`;
-    banner().querySelector('.hsplus-logout-warning__text').textContent =
-        `Logging out in ${text} — do something to stay logged in`;
+function showBanner(text) {
+    banner().querySelector('.hsplus-logout-warning__text').textContent = text;
     document.body.classList.add('hsplus-logout-soon');
 }
 
 function hideBanner() {
     document.body.classList.remove('hsplus-logout-soon');
+}
+
+function isSystemLine(msg) {
+    if (msg.matches('.' + CHANNEL_CLASSES.join(', .'))) return false;
+    return !CHANNEL_CLASSES.some(c => msg.querySelector('.' + c));
 }
 
 export function initLogoutWarning() {
@@ -79,47 +95,77 @@ export function initLogoutWarning() {
         void loadSettings();
     });
 
-    let lastActivity = Date.now();
-    let warned = false;
+    let warnedAt = 0;
+    // State/target seen on the previous poll, so an ongoing AFK fight does not clear its own warning.
+    let lastState = ActionState.IdleState;
+    let lastTarget = null;
 
     const clear = () => {
-        if (warned) {
-            warned = false;
+        if (warnedAt) {
+            warnedAt = 0;
             if (window.account?.embedded) window.account.clearAttention();
         }
         hideBanner();
     };
 
+    const warn = (text) => {
+        if (!settings.enabled) return;
+        warnedAt = Date.now();
+        playAlertSound(settings.sound, settings.volume);
+        if (window.account?.embedded) window.account.notifyAttention('logout');
+        showBanner(text || 'You are about to be logged out — do something to stay logged in');
+    };
+
+    const onNewMessage = (msg) => {
+        const text = (msg.textContent || '').trim();
+        if (!LOGOUT_RE.test(text) || !SOON_RE.test(text) || !isSystemLine(msg)) return;
+        warn(text);
+    };
+
+    // The chat list is created at login and rebuilt on every login, so the observer is
+    // (re)attached from the poll below whenever a new list element appears.
+    let observedList = null;
+    let listObserver = null;
+    const observeChat = () => {
+        const list = document.getElementById(PUBLIC_LIST_ID);
+        if (list === observedList) return;
+        listObserver?.disconnect();
+        observedList = list;
+        if (!list) return;
+        listObserver = new MutationObserver((records) => {
+            for (const rec of records) {
+                rec.addedNodes.forEach((node) => {
+                    if (!(node instanceof HTMLElement)) return;
+                    if (node.matches(MESSAGE_SELECTOR)) onNewMessage(node);
+                    else node.querySelectorAll(MESSAGE_SELECTOR).forEach(onNewMessage);
+                });
+            }
+        });
+        listObserver.observe(list, { childList: true, subtree: true });
+    };
+
     setInterval(() => {
         try {
+            observeChat();
+            if (!warnedAt) return;
+
             // _mainPlayer/_currentState/_isMoving/_currentTarget are the game's own (stable) field
             // names, checked against the live client (see idleWatch.js).
             const player = document.highlite?.gameHooks?.EntityManager?.Instance?._mainPlayer;
-            if (!player || !settings.enabled) {
-                lastActivity = Date.now(); // logged out / disconnected / off: nothing to time
-                clear();
+            if (!player || !settings.enabled || Date.now() - warnedAt > AUTO_CLEAR_MS) {
+                clear(); // logged out / disconnected / turned off / stale
                 return;
             }
-
             const state = player._currentState?.getCurrentState?.();
-            // Anything but standing still counts: skilling, combat, banking, trading, walking…
-            const active = (typeof state === 'number' && state !== ActionState.IdleState)
+            // Anything but standing still answers the warning: skilling, combat, banking, walking…
+            // The fight that was already running when the game warned counts too, so this only
+            // clears once the character visibly does something new (a state change or a move).
+            const active = (typeof state === 'number' && state !== ActionState.IdleState && state !== lastState)
                 || Boolean(player._isMoving)
-                || player._currentTarget != null;
-            if (active) {
-                lastActivity = Date.now();
-                clear();
-                return;
-            }
-
-            const idleMinutes = (Date.now() - lastActivity) / 60000;
-            if (idleMinutes < settings.minutes) return;
-            if (!warned) {
-                warned = true;
-                playAlertSound(settings.sound, settings.volume);
-                if (window.account?.embedded) window.account.notifyAttention('logout');
-            }
-            showBanner(idleMinutes); // keeps the countdown text current
+                || (player._currentTarget != null && player._currentTarget !== lastTarget);
+            lastState = typeof state === 'number' ? state : lastState;
+            lastTarget = player._currentTarget ?? null;
+            if (active) clear();
         } catch {
             // Never let the watcher break anything else; try again next poll.
         }

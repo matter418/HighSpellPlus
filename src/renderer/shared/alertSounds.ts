@@ -81,7 +81,9 @@ export function playAlertSound(name: string, volumePct: unknown, onEnded?: () =>
     try {
         if (!audioCtx) audioCtx = new AudioContext();
         const ctx = audioCtx;
-        if (ctx.state === 'suspended') ctx.resume().catch(() => {});
+        if (ctx.state === 'suspended') {
+            ctx.resume().catch((e) => console.warn('[Highspell+] AudioContext resume failed:', e));
+        }
         const t0 = ctx.currentTime;
 
         // 0.25 leaves headroom: a sound's oscillators overlap (up to three at once in Bell)
@@ -161,8 +163,9 @@ export function playAlertSound(name: string, volumePct: unknown, onEnded?: () =>
                 tone('sine', 1975.5, 0.12, 0.45);
                 break;
         }
-    } catch {
+    } catch (e) {
         // no audio device; the visual alert still fires
+        console.warn('[Highspell+] Alert sound failed:', e);
     }
 }
 

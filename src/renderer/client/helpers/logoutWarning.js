@@ -115,9 +115,14 @@ export function initLogoutWarning() {
     };
 
     const warn = (text) => {
-        if (!settings.enabled) return;
+        if (!settings.enabled) {
+            console.log('[Highspell+] Logout warning line seen but the warning is off:', text);
+            return;
+        }
         if (warnedAt) clear(); // the game repeated itself; restart cleanly rather than stacking sounds
         warnedAt = Date.now();
+        console.log(`[Highspell+] Logout warning fired (sound ${settings.sound} ${settings.repeat ? 'repeating' : 'once'} at ${settings.volume}%, ` +
+            `view ${document.hidden ? 'hidden' : 'visible'}):`, text);
         // Back to back until the player acts (each play starts as the last ends), or once.
         if (settings.repeat) stopSound = playAlertSoundRepeating(settings.sound, settings.volume);
         else playAlertSound(settings.sound, settings.volume);
@@ -127,8 +132,24 @@ export function initLogoutWarning() {
 
     const onNewMessage = (msg) => {
         const text = (msg.textContent || '').trim();
-        if (!LOGOUT_RE.test(text) || !SOON_RE.test(text) || !isSystemLine(msg)) return;
-        warn(text);
+        const matched = LOGOUT_RE.test(text) && SOON_RE.test(text) && isSystemLine(msg);
+        // Diagnostics (forwarded to the main log): any line that mentions logging out, with
+        // the verdict, so a wording the matcher misses can be pinned down from the log.
+        if (/log/i.test(text) && /out/i.test(text)) {
+            console.log(`[Highspell+] Chat line about logging out ${matched ? 'MATCHED' : 'ignored'} ` +
+                `(system=${isSystemLine(msg)}, classes="${msg.className}"):`, text);
+        }
+        if (matched) warn(text);
+    };
+
+    // Manual test from the F12 console of any game view: __hsplusLogoutWarningTest() feeds the
+    // matcher a fake system line, so the sound/banner/tab flash can be checked without a
+    // 14-minute wait (and on a background account).
+    window.__hsplusLogoutWarningTest = (text = 'You will be logged out in 1 minute due to inactivity.') => {
+        const fake = document.createElement('div');
+        fake.className = 'hs-chat-message-container';
+        fake.textContent = text;
+        onNewMessage(fake);
     };
 
     // The chat list is created at login and rebuilt on every login, so the observer is
@@ -141,6 +162,7 @@ export function initLogoutWarning() {
         listObserver?.disconnect();
         observedList = list;
         if (!list) return;
+        console.log('[Highspell+] Logout warning: watching the chat list');
         listObserver = new MutationObserver((records) => {
             for (const rec of records) {
                 rec.addedNodes.forEach((node) => {

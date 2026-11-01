@@ -63,6 +63,10 @@ interface Account {
 
 const PREVIEW_WIDTH = 240;
 const PREVIEW_JPEG_QUALITY = 70;
+/** Quiet time after the last resize tick before hidden views are re-laid-out at the new size. */
+const RELAYOUT_DEBOUNCE_MS = 150;
+/** How long a hidden view is kept drawable (underneath the active one) so Chromium applies the new size and paints a frame. */
+const RELAYOUT_SHOW_MS = 250;
 /** Delay before the second focus() in focusActive(), long enough for the compositor to apply a visibility change. */
 const FOCUS_RETRY_MS = 50;
 const LAYOUTS: ShellConfig['layout'][] = ['top', 'bottom', 'left', 'right', 'multibox'];
@@ -171,6 +175,8 @@ class ShellWindow {
     private contentBounds: Rectangle = { x: 0, y: 0, width: 0, height: 0 };
     private previewTimer: NodeJS.Timeout | null = null;
     private previewFps = 0;
+    private relayoutTimer: NodeJS.Timeout | null = null;
+    private relayoutHideTimer: NodeJS.Timeout | null = null;
     private shellReady = false;
     private readonly shellWcId: number;
     // Decided once per window: switching mid-run would split accounts across profiles.
@@ -357,6 +363,9 @@ class ShellWindow {
         if (!target) return;
         this.activeSlot = slot;
         target.attention = null; // looking at it answers the alert
+        // Topmost, so hidden views can be made drawable underneath it (relayoutHiddenViews)
+        // without ever showing through.
+        this.win.contentView.addChildView(target.view);
         this.applyBounds();
         this.focusActive();
         this.broadcastState();
@@ -479,6 +488,34 @@ class ShellWindow {
             height: Math.max(1, Math.round(b.height)),
         };
         this.applyBounds();
+        if (this.relayoutTimer) clearTimeout(this.relayoutTimer);
+        this.relayoutTimer = setTimeout(() => this.relayoutHiddenViews(), RELAYOUT_DEBOUNCE_MS);
+    }
+
+    /**
+     * Chromium does not lay out a hidden view at a new size: after a window resize every
+     * background account keeps its old viewport until it is next shown, so its dock thumbnail
+     * came back in the old shape (letterboxed in the new box) until it was clicked. Once the
+     * resize settles, briefly make the hidden views drawable; they sit underneath the active
+     * view (kept topmost by activate()) so nothing shows, but the new size is applied and a
+     * frame is painted. Then hide them again and refresh the thumbnails. The views are told
+     * nothing about this, so their frame throttle stays in background mode throughout.
+     */
+    private relayoutHiddenViews() {
+        this.relayoutTimer = null;
+        if (this.win.isDestroyed() || this.isMultibox()) return;
+        const hidden = this.accounts.filter(a => a.slot !== this.activeSlot && this.wcOf(a));
+        if (hidden.length === 0) return;
+        for (const a of hidden) a.view.setVisible(true);
+        if (this.relayoutHideTimer) clearTimeout(this.relayoutHideTimer);
+        this.relayoutHideTimer = setTimeout(() => {
+            this.relayoutHideTimer = null;
+            if (this.win.isDestroyed()) return;
+            for (const a of hidden) {
+                if (a.slot !== this.activeSlot && this.wcOf(a)) a.view.setVisible(false);
+            }
+            if (this.previewTimer) this.capturePreviews();
+        }, RELAYOUT_SHOW_MS);
     }
 
     /** Put the accounts in the given slot order (a drag in the shell page); ignored unless it is a permutation of the current ones. */
@@ -591,6 +628,9 @@ class ShellWindow {
     private destroy() {
         if (this.previewTimer) clearInterval(this.previewTimer);
         this.previewTimer = null;
+        if (this.relayoutTimer) clearTimeout(this.relayoutTimer);
+        if (this.relayoutHideTimer) clearTimeout(this.relayoutHideTimer);
+        this.relayoutTimer = this.relayoutHideTimer = null;
         for (const a of this.accounts) {
             shells.delete(a.wcId);
             try {

@@ -138,6 +138,9 @@ window.shell.onWarning(({ level }) => {
 function pushContentBounds() {
     const r = content.getBoundingClientRect();
     window.shell.setContentBounds({ x: r.left, y: r.top, width: r.width, height: r.height });
+    // Every dock card, placeholder or capture, is shaped like the game area so card heights
+    // never change as accounts are switched (see .acct-thumb in shell.css).
+    if (r.width > 0 && r.height > 0) body.style.setProperty('--view-aspect', `${r.width} / ${r.height}`);
 }
 // #content is flex: 1 both ways, so any window resize changes its size and the observer fires.
 // Position-only moves (switching the dock from left to right) go through applyLayout().
@@ -342,23 +345,6 @@ function countLabel(): HTMLElement {
     return el('span', 'acct-count', `${state.accounts.length} / ${state.max}`);
 }
 
-/**
- * Shape the thumbnail box like the capture it holds, so the whole game view shows with no
- * cropping and no bars. The box cannot simply take the content area's shape: a hidden view is
- * captured at whatever size it was last drawn at, which after a window resize is not the
- * current one. Runs on every load because each capture replaces the image.
- */
-function fitThumbToImage(thumb: HTMLElement, img: HTMLImageElement) {
-    const apply = () => {
-        if (!img.naturalWidth || !img.naturalHeight) return;
-        const aspect = `${img.naturalWidth} / ${img.naturalHeight}`;
-        if (thumb.style.aspectRatio !== aspect) thumb.style.aspectRatio = aspect;
-        thumb.classList.add('has-image');
-    };
-    img.addEventListener('load', apply);
-    if (img.complete) apply();
-}
-
 /** The scrolling chip row of a strip, created once per strip so its scroll position survives re-renders. */
 function stripTabs(container: HTMLElement): HTMLElement {
     let tabs = container.querySelector<HTMLElement>('.acct-strip-tabs');
@@ -418,7 +404,13 @@ function renderStrip(container: HTMLElement) {
     updateStripOverflow(tabs);
 }
 
+// Active slot at the last dock render: the list only scrolls to the active card when it changes.
+let lastRenderedActive = 0;
+
 function renderDock(container: HTMLElement) {
+    // The list is rebuilt from scratch on every state change (a title update, an idle flash, a
+    // click); keep its scroll position so it does not jump back to the top each time.
+    const savedScroll = container.querySelector<HTMLElement>('.acct-dock-list')?.scrollTop ?? 0;
     container.replaceChildren();
 
     const header = el('div', 'acct-dock-header');
@@ -449,7 +441,6 @@ function renderDock(container: HTMLElement) {
             const img = el('img');
             img.alt = '';
             img.draggable = false; // native image drag would fight the reorder drag
-            fitThumbToImage(thumb, img);
             img.src = src;
             thumb.appendChild(img);
         } else {
@@ -470,8 +461,13 @@ function renderDock(container: HTMLElement) {
     const add = addButton(collapsed);
     if (add) list.appendChild(add);
     container.appendChild(list);
-    // With six accounts the list scrolls; keep the one you switched to (Ctrl+N, a close) on screen.
-    list.querySelector<HTMLElement>('.active')?.scrollIntoView({ block: 'nearest' });
+    list.scrollTop = savedScroll;
+    // With six accounts the list scrolls; when you switch (Ctrl+N, a close) bring the new active
+    // card on screen if it is not already, and otherwise leave the list where it was.
+    if (state.activeSlot !== lastRenderedActive) {
+        list.querySelector<HTMLElement>('.active')?.scrollIntoView({ block: 'nearest' });
+        lastRenderedActive = state.activeSlot;
+    }
 
     const footer = el('div', 'acct-dock-footer');
     footer.appendChild(el('span', undefined, `${SHORTCUT.switchAll} to switch`));
@@ -524,7 +520,6 @@ function updatePreviewImage(slot: number) {
         img = document.createElement('img');
         img.alt = '';
         img.draggable = false;
-        fitThumbToImage(thumb as HTMLElement, img);
         thumb.prepend(img);
     }
     img.src = src;

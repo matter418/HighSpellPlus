@@ -472,11 +472,12 @@ body.collapsed .acct-dock-list {
     position: relative;
     width: 100%;
     flex: 0 0 auto;
-    /* Placeholder shape (no capture yet, or the MAIN card). With a capture, shell.ts sets an
-       inline aspect-ratio equal to the image's, so the whole game view shows with no cropping
-       and no bars. Card interior: 232px dock − 2×10px list padding − 2×2px card border = 208px
-       wide; main resizes captures to 240px wide, so a thumbnail is never upscaled. */
-    aspect-ratio: 2 / 1;
+    /* Every card has the game area's shape (--view-aspect, set by shell.ts from #content on
+       every resize), placeholder and capture alike, so cards never change height when accounts
+       are switched; a capture fills it exactly, uncropped. Card interior: 232px dock − 2×10px
+       list padding − 2×2px card border = 208px wide; main resizes captures to 240px wide, so a
+       thumbnail is never upscaled. */
+    aspect-ratio: var(--view-aspect, 2 / 1);
     background: #0e1410;
     display: flex;
     align-items: center;

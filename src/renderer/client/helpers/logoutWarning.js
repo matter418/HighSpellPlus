@@ -18,12 +18,11 @@
 // lines of "You are about to be logged out in 1 minute". Easy to miss on a background tab or
 // another window, so this watches the public chat list for that line and, when it appears,
 // plays a sound, shows a banner in the view and, inside the multi-account shell, flags the
-// account's tab ("Logging out soon!"). The cue clears when the character does something, when
-// the character is gone (logged out), or after a while on its own.
-// Needs `document.highlite.gameHooks` for the activity check, so client.ts starts it only when
+// account's tab ("Logging out soon!"). The cue clears when the player clicks or presses a key
+// in that view, when the character is gone (logged out), or after a while on its own.
+// Needs `document.highlite.gameHooks` to notice the logout, so client.ts starts it only when
 // plugins are enabled (same as the idle watch).
 
-import { ActionState } from '@ryelite/core';
 import { playAlertSound, playAlertSoundRepeating } from '../../shared/alertSounds';
 
 // The game's chat DOM (same ids Chat+ hooks into).
@@ -98,11 +97,18 @@ export function initLogoutWarning() {
     });
 
     let warnedAt = 0;
-    // State/target seen on the previous poll, so an ongoing AFK fight does not clear its own warning.
-    let lastState = ActionState.IdleState;
-    let lastTarget = null;
     /** Stops the repeating sound while one is running. */
     let stopSound = null;
+
+    // What answers the warning is the player doing something, i.e. a click or a key in this
+    // view: the server's inactivity clock ignores an auto-retaliate fight (that is how the
+    // logout arrives mid-fight), and so must this, or the fight would clear its own warning.
+    // Capture phase, so it fires even when the game stops the event.
+    const onInput = () => {
+        if (warnedAt) clear();
+    };
+    window.addEventListener('pointerdown', onInput, true);
+    window.addEventListener('keydown', onInput, true);
 
     const clear = () => {
         if (warnedAt) {
@@ -185,18 +191,7 @@ export function initLogoutWarning() {
             const player = document.highlite?.gameHooks?.EntityManager?.Instance?._mainPlayer;
             if (!player || !settings.enabled || Date.now() - warnedAt > AUTO_CLEAR_MS) {
                 clear(); // logged out / disconnected / turned off / stale
-                return;
             }
-            const state = player._currentState?.getCurrentState?.();
-            // Anything but standing still answers the warning: skilling, combat, banking, walking…
-            // The fight that was already running when the game warned counts too, so this only
-            // clears once the character visibly does something new (a state change or a move).
-            const active = (typeof state === 'number' && state !== ActionState.IdleState && state !== lastState)
-                || Boolean(player._isMoving)
-                || (player._currentTarget != null && player._currentTarget !== lastTarget);
-            lastState = typeof state === 'number' ? state : lastState;
-            lastTarget = player._currentTarget ?? null;
-            if (active) clear();
         } catch {
             // Never let the watcher break anything else; try again next poll.
         }

@@ -32,9 +32,13 @@ const MESSAGE_SELECTOR = '.hs-chat-message-container';
 // match is limited to system lines so a player typing "logged out in 1 minute" cannot trigger it.
 const CHANNEL_CLASSES = ['hs-text--orange', 'hs-text--yellow', 'hs-text--cyan'];
 // Wording is matched loosely (the exact server text is not pinned down): something about being
-// logged out, with a time or inactivity in the same line.
-const LOGOUT_RE = /\blog(?:ged)?\s*out\b/i;
-const SOON_RE = /\b(?:\d+|one|a)\s*(?:minute|min|second|sec)|inactiv|idle/i;
+// logged out, with minutes or inactivity in the same line. Seconds are deliberately NOT
+// accepted: trying to log out right after a fight gets a refusal along the lines of "you
+// cannot log out for 10 seconds after combat", which must not sound the alarm. Friends'
+// "<name> Logged Out" notifications have no time in them and never match either.
+const LOGOUT_RE = /\blog(?:ged|ging)?\s*out\b/i;
+const SOON_RE = /\b(?:\d+|one|a)\s*min(?:ute)?s?\b|inactiv/i;
+const NOT_RE = /combat|fight|attack/i;
 
 // One poll ≈ one game tick (the game loop runs a 600ms TIMESTEP accumulator).
 const POLL_MS = 600;
@@ -122,12 +126,12 @@ export function initLogoutWarning() {
 
     const warn = (text) => {
         if (!settings.enabled) {
-            console.log('[Highspell+] Logout warning line seen but the warning is off:', text);
+            console.info('[Highspell+] Logout warning line seen but the warning is off:', text);
             return;
         }
         if (warnedAt) clear(); // the game repeated itself; restart cleanly rather than stacking sounds
         warnedAt = Date.now();
-        console.log(`[Highspell+] Logout warning fired (sound ${settings.sound} ${settings.repeat ? 'repeating' : 'once'} at ${settings.volume}%, ` +
+        console.info(`[Highspell+] Logout warning fired (sound ${settings.sound} ${settings.repeat ? 'repeating' : 'once'} at ${settings.volume}%, ` +
             `view ${document.hidden ? 'hidden' : 'visible'}):`, text);
         // Back to back until the player acts (each play starts as the last ends), or once.
         if (settings.repeat) stopSound = playAlertSoundRepeating(settings.sound, settings.volume);
@@ -138,11 +142,13 @@ export function initLogoutWarning() {
 
     const onNewMessage = (msg) => {
         const text = (msg.textContent || '').trim();
-        const matched = LOGOUT_RE.test(text) && SOON_RE.test(text) && isSystemLine(msg);
+        const matched = LOGOUT_RE.test(text) && SOON_RE.test(text) && !NOT_RE.test(text) && isSystemLine(msg);
         // Diagnostics (forwarded to the main log): any line that mentions logging out, with
         // the verdict, so a wording the matcher misses can be pinned down from the log.
+        // console.info, not console.log: the game bundle replaces console.log (and .debug) with
+        // its own no-ops once it has loaded.
         if (/log/i.test(text) && /out/i.test(text)) {
-            console.log(`[Highspell+] Chat line about logging out ${matched ? 'MATCHED' : 'ignored'} ` +
+            console.info(`[Highspell+] Chat line about logging out ${matched ? 'MATCHED' : 'ignored'} ` +
                 `(system=${isSystemLine(msg)}, classes="${msg.className}"):`, text);
         }
         if (matched) warn(text);
@@ -168,7 +174,7 @@ export function initLogoutWarning() {
         listObserver?.disconnect();
         observedList = list;
         if (!list) return;
-        console.log('[Highspell+] Logout warning: watching the chat list');
+        console.info('[Highspell+] Logout warning: watching the chat list');
         listObserver = new MutationObserver((records) => {
             for (const rec of records) {
                 rec.addedNodes.forEach((node) => {

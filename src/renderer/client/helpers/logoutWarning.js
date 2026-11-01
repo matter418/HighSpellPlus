@@ -186,8 +186,8 @@ export function initLogoutWarning() {
             observeChat();
             if (!warnedAt) return;
 
-            // _mainPlayer/_currentState/_isMoving/_currentTarget are the game's own (stable) field
-            // names, checked against the live client (see idleWatch.js).
+            // _mainPlayer is the game's own (stable) field name, checked against the live client
+            // (see idleWatch.js); it is null once the character is logged out.
             const player = document.highlite?.gameHooks?.EntityManager?.Instance?._mainPlayer;
             if (!player || !settings.enabled || Date.now() - warnedAt > AUTO_CLEAR_MS) {
                 clear(); // logged out / disconnected / turned off / stale

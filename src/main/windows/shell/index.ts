@@ -44,7 +44,13 @@ import log from 'electron-log';
 import { settingsService } from '../../modules/settingsManagement';
 import { registerWebContents } from '../../modules/windowRegistry';
 import { wireGameWebContents } from '../../modules/gameWebContents';
+import { savedWindowOptions, trackWindowState } from '../../modules/windowState';
 import type { AccountState, ShellConfig } from '../../../shared/shellTypes';
+
+// Same saved window state as the single-account window (windows/client), so switching modes
+// keeps the size the player had.
+const WINDOW_STATE_KEY = 'main';
+const WINDOW_SIZE_DEFAULTS = { width: 1280, height: 800, minWidth: 500, minHeight: 500 };
 
 export type { AccountState, ShellConfig };
 
@@ -194,13 +200,15 @@ class ShellWindow {
                 nodeIntegration: false,
                 webSecurity: app.isPackaged,
             },
-            minHeight: 500,
-            minWidth: 500,
+            ...savedWindowOptions(WINDOW_STATE_KEY, WINDOW_SIZE_DEFAULTS),
+            minHeight: WINDOW_SIZE_DEFAULTS.minHeight,
+            minWidth: WINDOW_SIZE_DEFAULTS.minWidth,
             icon: path.join(__dirname, 'icons/icon.png'),
             titleBarStyle: 'hidden',
             backgroundColor: '#141414',
             show: true,
         });
+        trackWindowState(this.win, WINDOW_STATE_KEY);
         this.win.setMenu(null);
         this.shellWcId = this.win.webContents.id;
         shells.set(this.shellWcId, this);

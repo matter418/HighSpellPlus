@@ -21,6 +21,11 @@ import './modules/userPasswordManagement'; // Import user password management mo
 import './modules/windowEventManagement'; // Import window event management module
 import { createShellWindow, isMultiAccountEnabled } from '../shell';
 import { wireGameWebContents } from '../../modules/gameWebContents';
+import { savedWindowOptions, trackWindowState } from '../../modules/windowState';
+
+// One saved window state for the single-account window and the multi-account shell alike.
+export const WINDOW_STATE_KEY = 'main';
+export const WINDOW_SIZE_DEFAULTS = { width: 1280, height: 800, minWidth: 500, minHeight: 500 };
 
 app.commandLine.appendSwitch('disable-background-timer-throttling');
 app.commandLine.appendSwitch('disable-renderer-backgrounding');
@@ -55,12 +60,14 @@ export async function createClientWindow() {
 
             webSecurity: app.isPackaged, // Disable web security only in development for CORS
         },
-        minHeight: 500,
-        minWidth: 500,
+        ...savedWindowOptions(WINDOW_STATE_KEY, WINDOW_SIZE_DEFAULTS),
+        minHeight: WINDOW_SIZE_DEFAULTS.minHeight,
+        minWidth: WINDOW_SIZE_DEFAULTS.minWidth,
         icon: path.join(__dirname, 'icons/icon.png'),
         titleBarStyle: 'hidden',
         show: true,
     });
+    trackWindowState(mainWindow, WINDOW_STATE_KEY);
 
     mainWindow.setMenu(null);
     if (!app.isPackaged && process.env['ELECTRON_RENDERER_URL']) {

@@ -24,7 +24,7 @@
 // plugins are enabled (same as the idle watch).
 
 import { ActionState } from '@ryelite/core';
-import { playAlertSound } from '../../shared/alertSounds';
+import { playAlertSound, playAlertSoundRepeating } from '../../shared/alertSounds';
 
 // The game's chat DOM (same ids Chat+ hooks into).
 const PUBLIC_LIST_ID = 'hs-public-message-list__container';
@@ -44,19 +44,21 @@ const POLL_MS = 600;
 const AUTO_CLEAR_MS = 90_000;
 const BANNER_ID = 'hsplus-logout-warning';
 
-// Defaults must match the Alerts schema in src/preload/settings.ts (on, Alarm, 60 %).
-const settings = { enabled: true, sound: 'Alarm', volume: 60 };
+// Defaults must match the Alerts schema in src/preload/settings.ts (on, Alarm, 60 %, repeat on).
+const settings = { enabled: true, sound: 'Alarm', volume: 60, repeat: true };
 
 async function loadSettings() {
     try {
-        const [enabled, sound, volume] = await Promise.all([
+        const [enabled, sound, volume, repeat] = await Promise.all([
             window.settings.get('Alerts', 'Logout Warning'),
             window.settings.get('Alerts', 'Logout Warning Sound'),
             window.settings.get('Alerts', 'Logout Warning Volume (%)'),
+            window.settings.get('Alerts', 'Repeat Logout Sound'),
         ]);
         settings.enabled = enabled !== false;
         settings.sound = typeof sound === 'string' ? sound : 'Alarm';
         settings.volume = typeof volume === 'number' && Number.isFinite(volume) ? volume : 60;
+        settings.repeat = repeat !== false;
     } catch {
         // keep defaults
     }
@@ -99,19 +101,26 @@ export function initLogoutWarning() {
     // State/target seen on the previous poll, so an ongoing AFK fight does not clear its own warning.
     let lastState = ActionState.IdleState;
     let lastTarget = null;
+    /** Stops the repeating sound while one is running. */
+    let stopSound = null;
 
     const clear = () => {
         if (warnedAt) {
             warnedAt = 0;
             if (window.account?.embedded) window.account.clearAttention();
         }
+        stopSound?.();
+        stopSound = null;
         hideBanner();
     };
 
     const warn = (text) => {
         if (!settings.enabled) return;
+        if (warnedAt) clear(); // the game repeated itself; restart cleanly rather than stacking sounds
         warnedAt = Date.now();
-        playAlertSound(settings.sound, settings.volume);
+        // Back to back until the player acts (each play starts as the last ends), or once.
+        if (settings.repeat) stopSound = playAlertSoundRepeating(settings.sound, settings.volume);
+        else playAlertSound(settings.sound, settings.volume);
         if (window.account?.embedded) window.account.notifyAttention('logout');
         showBanner(text || 'You are about to be logged out — do something to stay logged in');
     };

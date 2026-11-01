@@ -30,6 +30,23 @@ export type AlertSound = (typeof ALERT_SOUNDS)[number];
 
 let audioCtx: AudioContext | null = null;
 
+/**
+ * How long each synthesised sound lasts (its last tone's start + duration), so a repeating
+ * alert can chain plays back to back without overlap. Keep in step with the cases in
+ * playAlertSound. The mp3 reports its own end instead.
+ */
+const SYNTH_DURATION_MS: Record<string, number> = {
+    'Ding': 570,
+    'Chime': 920,
+    'Bell': 1200,
+    'Blip': 220,
+    'Knock': 300,
+    'Alarm': 750,
+    'Siren': 2000,
+    'Horn': 900,
+    'Triple Beep': 560,
+};
+
 function clampVolume(volumePct: unknown): number {
     const pct = Number(volumePct);
     return (Number.isFinite(pct) ? Math.min(100, Math.max(0, pct)) : DEFAULT_ALERT_VOLUME) / 100;
@@ -39,8 +56,9 @@ function clampVolume(volumePct: unknown): number {
  * Play an alert sound.
  * @param name one of ALERT_SOUNDS; 'Off' or anything unknown plays nothing
  * @param volumePct 0–100
+ * @param onEnded called once the sound has finished (not called when nothing was played)
  */
-export function playAlertSound(name: string, volumePct: unknown): void {
+export function playAlertSound(name: string, volumePct: unknown, onEnded?: () => void): void {
     const vol = clampVolume(volumePct);
     if (vol <= 0 || !(ALERT_SOUNDS as readonly string[]).includes(name)) return;
 
@@ -48,12 +66,17 @@ export function playAlertSound(name: string, volumePct: unknown): void {
         try {
             const a = new Audio(IDLE_ALERT_MP3_DATA_URL);
             a.volume = vol;
-            void a.play().catch(() => {});
+            if (onEnded) {
+                a.addEventListener('ended', onEnded, { once: true });
+                a.addEventListener('error', onEnded, { once: true });
+            }
+            void a.play().catch(() => onEnded?.());
         } catch {
             // no audio device; the visual alert still fires
         }
         return;
     }
+    if (onEnded) setTimeout(onEnded, SYNTH_DURATION_MS[name] ?? 1000);
 
     try {
         if (!audioCtx) audioCtx = new AudioContext();
@@ -141,6 +164,21 @@ export function playAlertSound(name: string, volumePct: unknown): void {
     } catch {
         // no audio device; the visual alert still fires
     }
+}
+
+/**
+ * Play an alert sound over and over, each play starting as the previous one ends (so a long
+ * sound like Siren never overlaps itself), until the returned function is called.
+ * @returns stop(): ends the loop; the play in progress finishes on its own
+ */
+export function playAlertSoundRepeating(name: string, volumePct: unknown): () => void {
+    let stopped = false;
+    const again = () => {
+        if (stopped) return;
+        playAlertSound(name, volumePct, again);
+    };
+    again();
+    return () => { stopped = true; };
 }
 
 /** Release the shared AudioContext (plugin teardown). Safe to call repeatedly. */

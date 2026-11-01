@@ -301,6 +301,12 @@ export class settingsSchema extends SettingsSchema {
                     description: "Loudness of the logout warning sound, 0 to 100.",
                     default: DEFAULT_ALERT_VOLUME,
                     validation: (value) => Number(value) >= 0 && Number(value) <= 100,
+                } as Field,
+                {
+                    label: "Repeat Logout Sound",
+                    type: SettingTypes.BOOLEAN,
+                    description: "Keep playing the sound back to back until you do something in game (or the warning clears on its own). Off: play it once.",
+                    default: true
                 } as Field
             ]
         },

@@ -15,8 +15,8 @@
 
 // The ONE place alert sounds are played, shared by the client (multi-account idle alert, the
 // settings window's preview) and the Chat+ plugin (alert words), so every alert in Highspell+
-// offers the same choices. Five are synthesised with the Web Audio API; "Idle Alert" is the
-// Idle Alert plugin's mp3 (see idleAlertSound.ts for provenance).
+// offers the same choices. All but one are synthesised with the Web Audio API; "Idle Alert" is
+// the Idle Alert plugin's mp3 (see idleAlertSound.ts for provenance).
 //
 // The name list lives in src/shared/alertSoundNames.ts (DOM-free, so the settings schema can
 // build its dropdown from it). Adding a sound: add its name there and a case in playAlertSound.
@@ -110,6 +110,27 @@ export function playAlertSound(name: string, volumePct: unknown): void {
             case 'Knock': // two soft low thuds
                 tone('triangle', 180, 0, 0.12, 1, 60);
                 tone('triangle', 180, 0.16, 0.14, 1, 60);
+                break;
+            case 'Alarm': // alarm-clock style: six fast alternating two-tone beeps
+                for (let i = 0; i < 6; i++) {
+                    tone('square', i % 2 ? 1760 : 1320, i * 0.13, 0.1, 0.45);
+                }
+                break;
+            case 'Siren': // two slow sweeps up and back down
+                tone('sawtooth', 500, 0, 0.5, 0.5, 1000);
+                tone('sawtooth', 1000, 0.5, 0.5, 0.5, 500);
+                tone('sawtooth', 500, 1.0, 0.5, 0.5, 1000);
+                tone('sawtooth', 1000, 1.5, 0.5, 0.5, 500);
+                break;
+            case 'Horn': // one low brassy chord (A3 + E4 + A4), held
+                tone('sawtooth', 220, 0, 0.9, 0.6);
+                tone('sawtooth', 329.6, 0, 0.9, 0.4);
+                tone('square', 440, 0, 0.9, 0.2);
+                break;
+            case 'Triple Beep': // three short, even high beeps
+                tone('sine', 1000, 0, 0.12, 1);
+                tone('sine', 1000, 0.22, 0.12, 1);
+                tone('sine', 1000, 0.44, 0.12, 1);
                 break;
             case 'Ding': // two quick bell-like tones (E6 then B6)
             default:

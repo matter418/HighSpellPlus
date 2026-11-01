@@ -22,6 +22,7 @@ import '@static/css/overrides.css';
 import '@static/css/item-tooltip.css';
 import '@static/css/ui-layout.css';
 import '@static/css/multiaccount.css';
+import '@static/css/logout-warning.css';
 
 import './helpers/titlebarHelpers.js';
 import { initUiLayout } from './helpers/uiLayout.js';
@@ -29,6 +30,7 @@ import { initAccountClose } from './helpers/accountClose.js';
 import { setupWorldSelectorObserver } from './helpers/worldSelectHelper';
 import { initFrameThrottle, setHidden, setHiddenFrameRate } from './helpers/frameThrottle.js';
 import { initIdleWatch } from './helpers/idleWatch.js';
+import { initLogoutWarning } from './helpers/logoutWarning.js';
 import { installPluginHub } from './helpers/pluginHub.js';
 
 // Inside the multi-account shell this page may be hidden behind another account. Serve
@@ -334,6 +336,7 @@ if (await window.settings.getByName('Enable Plugins')) {
     // this branch on purpose: it reads document.highlite.gameHooks, which only exists once core
     // has run, so there is no idle alert with plugins off.
     initIdleWatch();
+    initLogoutWarning(); // every view: warns before the server's 15-minute inactivity logout
     initAccountClose(); // the plugin rail exists since `new Highlite()`; the button goes in it
 } else {
     initAccountClose({ floating: true }); // no plugin rail: float the close button instead

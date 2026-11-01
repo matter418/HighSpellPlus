@@ -21,7 +21,11 @@
 // Adding a sound: add its name here and a case in playAlertSound; the dropdown, the client
 // and the Chat+ plugin all pick it up.
 
-export const ALERT_SOUND_NAMES = ['Ding', 'Chime', 'Bell', 'Blip', 'Knock', 'Idle Alert'] as const;
+export const ALERT_SOUND_NAMES = [
+    'Ding', 'Chime', 'Bell', 'Blip', 'Knock',
+    'Alarm', 'Siren', 'Horn', 'Triple Beep',
+    'Idle Alert',
+] as const;
 export type AlertSoundName = (typeof ALERT_SOUND_NAMES)[number];
 
 /** Default for every "… Volume (%)" setting that feeds playAlertSound. */

@@ -277,6 +277,40 @@ export class settingsSchema extends SettingsSchema {
                 } as Field
             ]
         },
+        Alerts: {
+            heading: "Alerts",
+            fields: [
+                {
+                    label: "Logout Warning",
+                    type: SettingTypes.BOOLEAN,
+                    description: "HighSpell logs a character out after 15 minutes without doing anything. Play a sound and show a banner shortly before that happens (every account, with or without multi-account). Any action clears it.",
+                    default: true
+                } as Field,
+                {
+                    label: "Logout Warning After (minutes)",
+                    type: SettingTypes.NUMBER,
+                    description: "How long the character must have been doing nothing before the warning. 14 gives you about a minute.",
+                    default: 14,
+                    validation: (value) => Number(value) >= 1 && Number(value) <= 60,
+                } as Field,
+                {
+                    label: "Logout Warning Sound",
+                    type: SettingTypes.DROPDOWN,
+                    description: "Sound played with the warning. Picking one plays a preview.",
+                    default: "Alarm",
+                    options: Object.fromEntries([["Off", "Off"], ...ALERT_SOUND_NAMES.map(n => [n, n])]),
+                    preview: "sound",
+                    volumeField: "Logout Warning Volume (%)"
+                } as DropdownField,
+                {
+                    label: "Logout Warning Volume (%)",
+                    type: SettingTypes.NUMBER,
+                    description: "Loudness of the logout warning sound, 0 to 100.",
+                    default: DEFAULT_ALERT_VOLUME,
+                    validation: (value) => Number(value) >= 0 && Number(value) <= 100,
+                } as Field
+            ]
+        },
         Screenshots: {
             heading: "Screenshots",
             fields: [

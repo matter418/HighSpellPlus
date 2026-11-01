@@ -64,6 +64,7 @@ declare global {
             activate: (slot: number) => void;
             add: () => void;
             close: (slot: number) => void;
+            reorder: (slots: number[]) => void;
             clearWarning: () => void;
             onState: (cb: (state: ShellState) => void) => void;
             onPreview: (cb: (p: { slot: number; dataUrl: string }) => void) => void;

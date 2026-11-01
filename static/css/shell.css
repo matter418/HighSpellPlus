@@ -137,6 +137,7 @@ body.collapsed[data-layout="right"]  .collapse-chevron { transform: rotate(-90de
 
 .acct-strip {
     display: none;
+    position: relative;
     flex: 0 0 36px;
     align-items: center;
     gap: 4px;
@@ -154,10 +155,52 @@ body[data-layout="bottom"] #strip-bottom {
     display: flex;
 }
 
+/* The chips scroll sideways when they outgrow the strip (mouse wheel, or dragging a chip to an
+   edge); the add button and the count stay put after them. The scrollbar is hidden: the strip is
+   36 px tall and the edge fades below say there is more. */
+.acct-strip-tabs {
+    position: relative; /* chips' offsetParent, so shell.ts can scroll the active one into view */
+    flex: 1 1 auto;
+    min-width: 0;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: none;
+}
+.acct-strip-tabs::-webkit-scrollbar { display: none; }
+.acct-strip-tabs::before,
+.acct-strip-tabs::after {
+    content: '';
+    position: sticky;
+    flex: 0 0 18px;
+    height: 100%;
+    margin-right: -22px; /* overlap the first/last chip instead of taking strip space */
+    pointer-events: none;
+    z-index: 1;
+    opacity: 0;
+    transition: opacity 0.15s ease;
+}
+.acct-strip-tabs::before {
+    left: 0;
+    background: linear-gradient(to right, var(--shell-bar-bg), transparent);
+}
+.acct-strip-tabs::after {
+    right: 0;
+    margin-right: 0;
+    margin-left: -22px;
+    background: linear-gradient(to left, var(--shell-bar-bg), transparent);
+}
+.acct-strip-tabs.overflow-left::before,
+.acct-strip-tabs.overflow-right::after { opacity: 1; }
+
 .acct-chip {
     position: relative;
     display: flex;
     align-items: center;
+    flex: 0 0 auto; /* keep its size; the strip scrolls instead of squeezing names away */
     height: 28px;
     min-width: 140px;
     max-width: 200px;
@@ -167,7 +210,18 @@ body[data-layout="bottom"] #strip-bottom {
     color: var(--shell-text);
     box-sizing: border-box;
     overflow: hidden;
+    touch-action: none;
 }
+
+/* Drag-to-reorder (shell.ts enableReorder): the grabbed chip/card/rail button lifts a little. */
+.acct-chip, .acct-card, .acct-rail-btn { cursor: grab; }
+.acct-chip.dragging, .acct-card.dragging, .acct-rail-btn.dragging {
+    cursor: grabbing;
+    opacity: 0.75;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.5);
+    z-index: 2;
+}
+body.reordering, body.reordering * { cursor: grabbing !important; }
 .acct-chip.active {
     background: var(--shell-chip-active-bg);
     border-color: var(--shell-green);
@@ -390,6 +444,9 @@ body.collapsed .acct-dock-list {
     position: relative;
     display: flex;
     flex-direction: column;
+    /* Never shrink to fit the dock: with six accounts the list scrolls instead (`overflow: hidden`
+       below would otherwise let the card's min-height drop to 0 and squash the thumbnail). */
+    flex: 0 0 auto;
     border-radius: 8px;
     overflow: hidden;
     background: var(--shell-chip-bg);
@@ -400,6 +457,11 @@ body.collapsed .acct-dock-list {
     border-color: var(--shell-green);
     box-shadow: 0 0 0 2px rgba(0, 222, 122, 0.25);
 }
+.acct-card.active .acct-num {
+    background: var(--shell-green);
+    color: var(--shell-green-dark);
+}
+.acct-card { touch-action: none; }
 .acct-card .acct-select {
     flex-direction: column;
     align-items: stretch;
@@ -409,9 +471,12 @@ body.collapsed .acct-dock-list {
 .acct-thumb {
     position: relative;
     width: 100%;
-    /* 2:1 of the card interior: 232px dock − 2×10px list padding − 2×2px card border = 208px wide.
-       Main resizes captures to 240px wide, so a thumbnail is never upscaled. */
-    height: 104px;
+    flex: 0 0 auto;
+    /* The thumbnail is the whole game view, so the box has the view's own aspect ratio
+       (--view-aspect is set by shell.ts from #content's size on every resize) and the capture is
+       never cropped. Card interior: 232px dock − 2×10px list padding − 2×2px card border = 208px
+       wide; main resizes captures to 240px wide, so a thumbnail is never upscaled. */
+    aspect-ratio: var(--view-aspect, 2 / 1);
     background: #0e1410;
     display: flex;
     align-items: center;
@@ -422,7 +487,9 @@ body.collapsed .acct-dock-list {
 .acct-thumb img {
     width: 100%;
     height: 100%;
-    object-fit: cover;
+    /* contain, not cover: a frame captured just before a resize keeps its old shape and is
+       letterboxed rather than cropped. */
+    object-fit: contain;
     display: block;
 }
 .acct-thumb .acct-main {
@@ -466,8 +533,10 @@ body.collapsed .acct-dock-list {
 
 .acct-rail-btn {
     position: relative;
+    flex: 0 0 auto;
     width: 40px;
     height: 40px;
+    touch-action: none;
     border-radius: 8px;
     border: 2px solid var(--shell-border);
     background: var(--shell-chip-bg);
@@ -494,6 +563,7 @@ body.collapsed .acct-dock-list {
 }
 
 .acct-dock .acct-add {
+    flex: 0 0 auto;
     height: 40px;
     width: 100%;
     border-radius: 8px;

@@ -81,6 +81,8 @@ const shellAPI = {
     activate: (slot: number) => ipcRenderer.send('shell:activate', slot),
     add: () => ipcRenderer.send('shell:add'),
     close: (slot: number) => ipcRenderer.send('shell:close', slot),
+    /** New display order after a drag: every current slot exactly once. */
+    reorder: (slots: number[]) => ipcRenderer.send('shell:reorder', slots),
     /** The user dismissed the warning indicator; views re-arm their console forwarding. */
     clearWarning: () => ipcRenderer.send('shell:clear-warning'),
     onState: (cb: (state: ShellState) => void) => {

@@ -289,8 +289,9 @@ class ShellWindow {
 
         const wc = view.webContents;
         const account: Account = { slot, view, wcId: wc.id, name: '', state: 'loading', attention: null, previewBusy: false };
+        // `accounts` is the display order (tabs, dock cards, multibox grid, Ctrl+N); a new account
+        // goes last and the user may drag it elsewhere. Slots are only ids (and session partitions).
         this.accounts.push(account);
-        this.accounts.sort((a, b) => a.slot - b.slot);
 
         shells.set(wc.id, this);
         registerWebContents(wc, this.win, () => this.activeWebContents());
@@ -405,6 +406,7 @@ class ShellWindow {
             if (response !== 0) return;
         }
 
+        const closedIndex = this.accounts.indexOf(account);
         this.accounts = this.accounts.filter(a => a.slot !== slot);
         shells.delete(account.wcId);
         try {
@@ -419,9 +421,8 @@ class ShellWindow {
             return;
         }
         if (this.activeSlot === slot) {
-            // Prefer the neighbour to the left, like a browser tab strip.
-            const left = [...this.accounts].reverse().find(a => a.slot < slot);
-            this.activate((left ?? this.accounts[0]).slot);
+            // Prefer the neighbour to the left (in display order), like a browser tab strip.
+            this.activate(this.accounts[Math.max(0, closedIndex - 1)].slot);
         } else {
             this.applyBounds(); // multibox grid reflows when any account leaves
             this.broadcastState();
@@ -480,11 +481,23 @@ class ShellWindow {
         this.applyBounds();
     }
 
+    /** Put the accounts in the given slot order (a drag in the shell page); ignored unless it is a permutation of the current ones. */
+    reorder(slots: number[]) {
+        if (slots.length !== this.accounts.length) return;
+        const ordered = slots.map(s => this.accounts.find(a => a.slot === s));
+        if (ordered.some(a => !a) || new Set(slots).size !== slots.length) return;
+        this.accounts = ordered as Account[];
+        this.applyBounds(); // the multibox grid follows the order too
+        this.broadcastState();
+    }
+
     private handleShortcut(event: Electron.Event, input: Electron.Input) {
         if (!input.control || input.alt || input.meta) return;
         if (/^[1-6]$/.test(input.key)) {
             event.preventDefault();
-            this.activate(Number(input.key));
+            // Ctrl+N is the N-th account in display order, matching the number on its tab.
+            const target = this.accounts[Number(input.key) - 1];
+            if (target) this.activate(target.slot);
         } else if (input.key === '`' && !input.shift) {
             event.preventDefault();
             this.sendToShell('shell:toggle-collapsed');
@@ -615,6 +628,10 @@ function registerShellIPC() {
     ipcMain.on('shell:activate', (event, slot: unknown) => shellFor(event.sender)?.activate(Number(slot)));
     ipcMain.on('shell:add', (event) => shellFor(event.sender)?.addAccount());
     ipcMain.on('shell:close', (event, slot: unknown) => { void shellFor(event.sender)?.closeAccount(Number(slot)); });
+    ipcMain.on('shell:reorder', (event, slots: unknown) => {
+        if (!Array.isArray(slots) || slots.length > MAX_ACCOUNTS) return;
+        shellFor(event.sender)?.reorder(slots.map(Number));
+    });
     ipcMain.on('shell:clear-warning', (event) => shellFor(event.sender)?.clearWarnings());
 
     // The account channels are sent from inside the game page, which the game bundle and every

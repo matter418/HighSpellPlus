@@ -81,8 +81,19 @@ export interface LegacyPanelLayout {
 
 export type StoredPanelLayout = PanelLayout | LegacyPanelLayout;
 
-/** Everything in userData/ui-layout.json: the shared layout plus one per character name. */
-export interface UiLayoutStore {
+/** The shared layout plus one per character name (the "Shared Interface Layout" setting picks). */
+export interface UiLayoutScopes {
     shared: Record<string, StoredPanelLayout>;
     accounts: Record<string, Record<string, StoredPanelLayout>>;
+}
+
+/**
+ * Everything in userData/ui-layout.json. `screens` holds one set of layouts per monitor, keyed
+ * by the screen's size in CSS px ("2560x1440"), so a window moved between monitors of different
+ * resolutions keeps a separate arrangement on each. The top-level maps are the fallback for a
+ * monitor with no entry yet, and are kept equal to whatever was edited last, so a new monitor
+ * starts from the familiar layout (re-solved for its size) and gets its own entry on the first drag.
+ */
+export interface UiLayoutStore extends UiLayoutScopes {
+    screens: Record<string, UiLayoutScopes>;
 }

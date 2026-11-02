@@ -25,9 +25,13 @@ import fs from 'fs';
 import path from 'path';
 import { allWebContents } from './windowRegistry';
 import { writeFileAtomicSync } from './atomicFile';
-import type { StoredPanelLayout, UiLayoutStore } from '../../shared/shellTypes';
+import type { StoredPanelLayout, UiLayoutScopes, UiLayoutStore } from '../../shared/shellTypes';
 
 type UiLayout = Record<string, StoredPanelLayout>;
+
+// Per-monitor layout key: the screen's CSS-px size as the client reports it ("2560x1440").
+const SCREEN_KEY = /^\d{2,5}x\d{2,5}$/;
+const MAX_SCREENS = 32;
 
 // Panel keys are the `key:` values of the PANELS table in renderer/client/helpers/uiLayout.js;
 // account names are character names taken from the window title.
@@ -52,21 +56,36 @@ function load(): UiLayoutStore {
     } catch (e) {
         // No file yet is normal; anything else means a corrupt file that the next drag will overwrite.
         if ((e as NodeJS.ErrnoException).code !== 'ENOENT') log.warn('ui-layout.json unreadable, starting empty:', e);
-        store = { shared: {}, accounts: {} };
+        store = { shared: {}, accounts: {}, screens: {} };
     }
     return store;
 }
 
+function sanitizeScopes(raw: any): UiLayoutScopes {
+    const accounts: Record<string, UiLayout> = {};
+    for (const [name, l] of Object.entries(raw?.accounts || {})) {
+        if (typeof name === 'string' && name.length > 0 && name.length <= MAX_NAME_LEN) accounts[name] = sanitize(l);
+    }
+    return { shared: sanitize(raw?.shared), accounts };
+}
+
 function sanitizeStore(raw: any): UiLayoutStore {
     if (raw && typeof raw === 'object' && ('shared' in raw || 'accounts' in raw)) {
-        const accounts: Record<string, UiLayout> = {};
-        for (const [name, l] of Object.entries(raw.accounts || {})) {
-            if (typeof name === 'string' && name.length > 0 && name.length <= MAX_NAME_LEN) accounts[name] = sanitize(l);
+        const screens: Record<string, UiLayoutScopes> = {};
+        for (const [key, scopes] of Object.entries(raw.screens || {}).slice(0, MAX_SCREENS)) {
+            if (SCREEN_KEY.test(key) && scopes && typeof scopes === 'object') screens[key] = sanitizeScopes(scopes);
         }
-        return { shared: sanitize(raw.shared), accounts };
+        return { ...sanitizeScopes(raw), screens };
     }
     // Pre-2026-10-12 file: a flat panel map, which was the client-wide layout.
-    return { shared: sanitize(raw), accounts: {} };
+    return { shared: sanitize(raw), accounts: {}, screens: {} };
+}
+
+/** `scopes` with the given scope's panel map replaced. */
+function withScope(scopes: UiLayoutScopes, scopeKey: string, layout: UiLayout): UiLayoutScopes {
+    return scopeKey === 'shared'
+        ? { shared: layout, accounts: scopes.accounts }
+        : { shared: scopes.shared, accounts: { ...scopes.accounts, [scopeKey]: layout } };
 }
 
 const X_ANCHORS = ['left', 'center', 'right'] as const;
@@ -113,20 +132,24 @@ function broadcast(except?: Electron.WebContents) {
 
 export function registerUiLayoutIPC() {
     ipcMain.handle('ui-layout:get', () => load());
-    // scope: 'shared' or a character name; `next` is that scope's panel map.
-    ipcMain.on('ui-layout:set', (event, scope: unknown, next: unknown) => {
+    // scope: 'shared' or a character name; `next` is that scope's panel map; `screen` is the
+    // monitor it was edited on ("2560x1440"). The map becomes that monitor's layout for the
+    // scope AND the fallback for monitors without one (see UiLayoutStore).
+    ipcMain.on('ui-layout:set', (event, scope: unknown, next: unknown, screen: unknown) => {
         const current = load();
         const clean = sanitize(next);
-        if (scope === 'shared' || typeof scope !== 'string' || !scope) {
-            save({ ...current, shared: clean });
-        } else {
-            save({ ...current, accounts: { ...current.accounts, [scope.slice(0, MAX_NAME_LEN)]: clean } });
+        const scopeKey = scope === 'shared' || typeof scope !== 'string' || !scope ? 'shared' : scope.slice(0, MAX_NAME_LEN);
+        let screens = current.screens;
+        if (typeof screen === 'string' && SCREEN_KEY.test(screen) &&
+            (screen in screens || Object.keys(screens).length < MAX_SCREENS)) {
+            screens = { ...screens, [screen]: withScope(screens[screen] ?? { shared: {}, accounts: {} }, scopeKey, clean) };
         }
+        save({ ...withScope(current, scopeKey, clean), screens });
         broadcast(event.sender);
     });
-    // Settings window "Reset layout" button: shared AND every per-account layout, everywhere.
+    // Settings window "Reset layout" button: shared, every per-account and every per-monitor layout, everywhere.
     ipcMain.on('ui-layout:reset', () => {
-        save({ shared: {}, accounts: {} });
+        save({ shared: {}, accounts: {}, screens: {} });
         broadcast();
     });
 }

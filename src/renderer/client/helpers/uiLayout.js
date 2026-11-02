@@ -22,7 +22,8 @@
 // laying them out as usual and hit-testing follows the transform. A layout pins each panel's
 // visible box to the nearest viewport edge (or the centre) per axis with a px gap, and the
 // transform is re-solved from that on every resize, so a corner stays a corner at any window
-// size and one layout fits multibox tiles too. The main process stores one shared layout plus
+// size and one layout fits multibox tiles too. Each monitor (by resolution) keeps its own copy
+// of every layout (see activeLayout/persist). The main process stores one shared layout plus
 // one per character; the "Shared Interface Layout" setting picks which one this client edits
 // (see scope()), and every change is pushed live to the other windows and multi-account views.
 
@@ -64,7 +65,7 @@ const OVERLAY_ACTIVE_CLASS = 'hsplus-layout-overlay--active';
 const CORNERS = ['nw', 'ne', 'sw', 'se'];
 const IDENTITY = Object.freeze({ dx: 0, dy: 0, scale: 1 });
 
-let store = { shared: {}, accounts: {} }; // from the main process
+let store = { shared: {}, accounts: {}, screens: {} }; // from the main process
 let pendingStore = null;   // broadcast that arrived mid-drag; applied when the drag ends
 let sharedLayout = true;   // setting "Shared Interface Layout"
 let enabled = true;
@@ -113,9 +114,25 @@ function scope() {
     return accountName() || 'shared';
 }
 
-/** The panel map being viewed/edited right now (created on demand for a new character). */
+/**
+ * Which monitor the window is on, as "<width>x<height>" of the screen in CSS px. Chromium's
+ * window.screen follows the display the window is currently on, so a window dragged to another
+ * monitor (even one of the same size in a different place) reports that monitor's size.
+ */
+function screenKey() {
+    return `${window.screen.width}x${window.screen.height}`;
+}
+
+/**
+ * The panel map being viewed/edited right now: this monitor's layout for the scope when it has
+ * one, else the fallback (the layout last edited on any monitor), re-solved for this screen by
+ * solveTransform. Created on demand for a new character.
+ */
 function activeLayout() {
     const scopeKey = scope();
+    const perScreen = store.screens[screenKey()];
+    const own = perScreen && (scopeKey === 'shared' ? perScreen.shared : perScreen.accounts[scopeKey]);
+    if (own) return own;
     if (scopeKey === 'shared') return store.shared;
     if (!store.accounts[scopeKey]) store.accounts[scopeKey] = {};
     return store.accounts[scopeKey];
@@ -123,7 +140,7 @@ function activeLayout() {
 
 /** A store as sent by main, or an empty one if the payload is missing/legacy-shaped. */
 function normalizeStore(s) {
-    return s && s.shared ? s : { shared: {}, accounts: {} };
+    return s && s.shared ? { screens: {}, ...s } : { shared: {}, accounts: {}, screens: {} };
 }
 
 /** Whether the configured modifier key is down in this mouse/keyboard event. */
@@ -425,7 +442,21 @@ function applyAll() {
 }
 
 function persist() {
-    window.uiLayout.set(scope(), activeLayout());
+    const scopeKey = scope();
+    const key = screenKey();
+    const layout = activeLayout();
+    window.uiLayout.set(scopeKey, layout, key);
+    // Mirror main's bookkeeping locally (main only broadcasts to OTHER pages): this monitor now
+    // owns the map being edited, and the fallback for monitors without one is a copy of it.
+    const copy = JSON.parse(JSON.stringify(layout));
+    if (!store.screens[key]) store.screens[key] = { shared: {}, accounts: {} };
+    if (scopeKey === 'shared') {
+        store.screens[key].shared = layout;
+        store.shared = copy;
+    } else {
+        store.screens[key].accounts[scopeKey] = layout;
+        store.accounts[scopeKey] = copy;
+    }
 }
 
 // ---- edit mode (modifier held): outlines + corner handles ---------------------------------
@@ -741,6 +772,16 @@ export function initUiLayout() {
             applyAll();
         }
     }).observe(document.head, { childList: true, subtree: true, characterData: true });
+    // Per-monitor layouts switch when the window lands on another screen. Moving a window to a
+    // monitor of the same scale fires no resize (its size is unchanged), and there is no plain
+    // DOM event for it, so the screen is polled.
+    let lastScreen = screenKey();
+    setInterval(() => {
+        const key = screenKey();
+        if (key === lastScreen) return;
+        lastScreen = key;
+        applyAll();
+    }, 1000);
 
     // The HUD is built by the game after login and some panels (and followers) are re-created
     // when they are toggled; re-apply to any element we have not stamped yet. Chat and nameplates

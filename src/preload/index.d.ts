@@ -49,7 +49,7 @@ declare global {
         uiLayout: {
             get: () => Promise<UiLayoutStore>;
             /** scope: 'shared' or a character name. */
-            set: (scope: string, layout: Record<string, StoredPanelLayout>) => void;
+            set: (scope: string, layout: Record<string, StoredPanelLayout>, screen: string) => void;
             onChanged: (cb: (store: UiLayoutStore) => void) => void;
         };
         /** Plugin-storage backups: ask the user to restore when the database came up empty. */

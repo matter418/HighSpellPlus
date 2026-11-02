@@ -59,8 +59,9 @@ const accountAPI = {
 // per character, and every change is broadcast to every window and view.
 const uiLayoutAPI = {
     get: () => ipcRenderer.invoke('ui-layout:get') as Promise<UiLayoutStore>,
-    /** scope: 'shared' or a character name. */
-    set: (scope: string, layout: Record<string, StoredPanelLayout>) => ipcRenderer.send('ui-layout:set', scope, layout),
+    /** scope: 'shared' or a character name; screen: the monitor key ("2560x1440") the layout was edited on. */
+    set: (scope: string, layout: Record<string, StoredPanelLayout>, screen: string) =>
+        ipcRenderer.send('ui-layout:set', scope, layout, screen),
     onChanged: (cb: (store: UiLayoutStore) => void) => {
         ipcRenderer.on('ui-layout:changed', (_e, store: UiLayoutStore) => cb(store));
     },

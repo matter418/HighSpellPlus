@@ -23,6 +23,7 @@ import '@static/css/item-tooltip.css';
 import '@static/css/ui-layout.css';
 import '@static/css/multiaccount.css';
 import '@static/css/logout-warning.css';
+import '@static/css/emoji-font.css';
 
 import './helpers/titlebarHelpers.js';
 import { initUiLayout } from './helpers/uiLayout.js';

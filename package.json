@@ -36,7 +36,8 @@
     "asar": true,
     "artifactName": "HighspellPlus-${version}.${ext}",
     "files": [
-      "out/**/*.*"
+      "out/**/*.*",
+      "!out/renderer/fonts/**"
     ],
     "productName": "Highspell+",
     "publish": [
@@ -70,6 +71,9 @@
       "icon": "build/icon.ico"
     },
     "linux": {
+      "files": [
+        "out/renderer/fonts/**"
+      ],
       "target": [
         {
           "target": "AppImage",

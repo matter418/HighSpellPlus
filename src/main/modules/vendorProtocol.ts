@@ -20,6 +20,9 @@
 // (packaged builds), and file responses carry no JavaScript MIME type. This scheme is
 // registered as standard + CORS-enabled and answers with the right headers.
 //
+// `hsplus://fonts/<file>` serves the bundled fonts (see static/fonts/README.md) the same way:
+// a web font fetched from file:// fails the same CORS check.
+//
 // Register the scheme before app.whenReady() (registerVendorScheme), then attach the handler
 // to every session that loads client.html (registerVendorProtocol): the default session and,
 // when accounts are isolated, each per-account partition.
@@ -30,9 +33,14 @@ import path from 'path';
 
 export const VENDOR_SCHEME = 'hsplus';
 
-/** Files allowed out of the vendor folder. Everything else is a 404. */
-const VENDOR_FILES: Record<string, string> = {
-    'ryelite-core-0.1.2-hsplus.1.js': 'text/javascript; charset=utf-8',
+/** Files allowed out of each served folder, by URL host. Everything else is a 404. */
+const SERVED_FILES: Record<string, Record<string, string>> = {
+    vendor: {
+        'ryelite-core-0.1.2-hsplus.1.js': 'text/javascript; charset=utf-8',
+    },
+    fonts: {
+        'NotoColorEmoji-COLRv1.ttf': 'font/ttf',
+    },
 };
 
 export function registerVendorScheme(): void {
@@ -44,12 +52,12 @@ export function registerVendorScheme(): void {
     ]);
 }
 
-function vendorDir(): string {
+function servedDir(host: string): string {
     // Vite copies static/ into out/renderer/ for builds; in development the renderer is
     // served by the dev server and the files are read from the source tree instead.
     return app.isPackaged
-        ? path.join(__dirname, '../renderer/vendor')
-        : path.join(app.getAppPath(), 'static/vendor');
+        ? path.join(__dirname, '../renderer', host)
+        : path.join(app.getAppPath(), 'static', host);
 }
 
 const handledSessions = new WeakSet<Session>();
@@ -60,10 +68,11 @@ export function registerVendorProtocol(ses: Session): void {
     ses.protocol.handle(VENDOR_SCHEME, async (request) => {
         const url = new URL(request.url);
         const file = path.posix.basename(url.pathname);
-        const type = url.host === 'vendor' ? VENDOR_FILES[file] : undefined;
+        const files = Object.hasOwn(SERVED_FILES, url.host) ? SERVED_FILES[url.host] : {};
+        const type = Object.hasOwn(files, file) ? files[file] : undefined;
         if (!type) return new Response('Not found', { status: 404 });
         try {
-            const body = await fs.readFile(path.join(vendorDir(), file));
+            const body = await fs.readFile(path.join(servedDir(url.host), file));
             return new Response(body, {
                 status: 200,
                 headers: {

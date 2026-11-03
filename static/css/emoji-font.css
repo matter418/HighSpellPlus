@@ -1,0 +1,34 @@
+/* Bundled colour emoji fallback (see static/fonts/README.md).
+ *
+ * The plugin framework's side rail and several of its panel controls are emoji characters.
+ * Linux desktops without a colour emoji font (Linux Mint ships none) rendered them as blank
+ * squares. `HS+ Emoji` is Noto Color Emoji served from the app bundle; it sits after the
+ * platform fonts in every list below, so Windows and macOS keep their native emoji and only
+ * machines with no system coverage fall through to it. The unicode-range keeps the font from
+ * being fetched at all for plain text. */
+@font-face {
+    font-family: 'HS+ Emoji';
+    src: url('hsplus://fonts/NotoColorEmoji-COLRv1.ttf') format('truetype');
+    font-display: block;
+    unicode-range:
+        U+00A9, U+00AE, U+203C, U+2049, U+2122, U+2139, U+2190-21FF,
+        U+2300-23FF, U+24C2, U+25AA-25FF, U+2600-27BF, U+2900-297F, U+2B00-2BFF,
+        U+3030, U+303D, U+3297, U+3299, U+200D, U+20E3, U+FE0F, U+1F000-1FAFF,
+        U+E0020-E007F;
+}
+
+/* Rail buttons hold nothing but the icon glyph. */
+.highlite_bar .highlite_bar_item {
+    font-family:
+        'Segoe UI Emoji', 'Apple Color Emoji', 'Noto Color Emoji', 'HS+ Emoji',
+        sans-serif;
+}
+
+/* Panel chrome and content already use Inter; give them the same emoji tail. */
+.highlite_titlebar,
+.highlite_bar_selected_content .content_title,
+.highlite_bar_selected_content .content {
+    font-family:
+        'Inter', 'Segoe UI Emoji', 'Apple Color Emoji', 'Noto Color Emoji',
+        'HS+ Emoji', sans-serif;
+}

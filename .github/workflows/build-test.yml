@@ -25,13 +25,19 @@ jobs:
 
       # The Windows runner image ships Yarn 1.22 as an npm global that sits ahead of Node's
       # Corepack shims on PATH, so a bare `corepack enable` leaves `yarn` at 1.22 and the
-      # install refuses the project's Yarn 4 (release v1.0.10 run 41723920774). Installing
-      # Corepack through npm puts its shims in that same global folder, replacing them.
+      # install refuses the project's Yarn 4 (release v1.0.10 runs 41723920774 and
+      # 41724785059). Remove that global first, then let Corepack own `yarn`; bash so a
+      # failing command stops the step, and the version check catches a regression early.
       - name: Enable Corepack
+        shell: bash
         run: |
-          npm install -g corepack@latest
+          set -e
+          npm uninstall -g yarn || true
+          npm install -g corepack@latest --force
           corepack enable
-          yarn --version
+          hash -r
+          echo "yarn $(yarn --version)"
+          [[ "$(yarn --version)" == 4.* ]]
 
       - name: Install dependencies
         run: yarn install --frozen-lockfile
